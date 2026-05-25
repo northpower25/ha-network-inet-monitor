@@ -1,0 +1,28 @@
+export_report:
+  name: Export quality report
+  description: Export current quality summary as a text report file or event payload.
+  fields:
+    output_path:
+      name: Output path
+      description: Optional absolute file path for report export.
+      required: false
+      example: /config/network_quality_report.txt
+      selector:
+        text:
+    include_raw:
+      name: Include raw samples
+      description: Include raw measurement samples in exported data.
+      required: false
+      default: false
+      selector:
+        boolean:
+    instance_id:
+      name: Integration instance id
+      description: Optional instance id to target a specific Network Quality integration.
+      required: false
+      selector:
+        text:
+
+install_dashboard:
+  name: Install dashboard blueprint
+  description: Emits dashboard JSON template via event for manual import.

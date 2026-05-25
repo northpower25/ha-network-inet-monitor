@@ -1,0 +1,35 @@
+{
+  "title": "Network Quality",
+  "views": [
+    {
+      "title": "Overview",
+      "path": "network-quality-overview",
+      "cards": [
+        {
+          "type": "entities",
+          "title": "KPI",
+          "entities": [
+            "sensor.internet_download",
+            "sensor.internet_upload",
+            "sensor.ping_public",
+            "sensor.packet_loss",
+            "sensor.jitter",
+            "sensor.availability",
+            "sensor.quality_score",
+            "sensor.quality_class"
+          ]
+        },
+        {
+          "type": "history-graph",
+          "title": "Bandwidth and latency",
+          "hours_to_show": 24,
+          "entities": [
+            "sensor.internet_download",
+            "sensor.internet_upload",
+            "sensor.ping_public"
+          ]
+        }
+      ]
+    }
+  ]
+}
