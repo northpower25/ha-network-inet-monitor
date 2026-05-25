@@ -21,6 +21,7 @@ class NetworkQualitySensorDescription(SensorEntityDescription):
     """Describes Network Quality sensor entities."""
 
     value_fn: Callable[[dict[str, Any]], Any]
+    """Callable extracting the sensor value from coordinator data."""
 
 
 SENSOR_DESCRIPTIONS: tuple[NetworkQualitySensorDescription, ...] = (

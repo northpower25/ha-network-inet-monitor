@@ -31,6 +31,21 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Score model constants.
+MAX_CONTRACT_RATIO_MULTIPLIER = 1.2
+PING_THRESHOLD_MS = 200.0
+JITTER_THRESHOLD_MS = 100.0
+PACKET_LOSS_THRESHOLD_PERCENT = 10.0
+PERCENT_BASE = 100.0
+
+# Weighting of the quality score:
+# Contract fulfillment dominates, then latency and stability, then availability.
+WEIGHT_CONTRACT_RATIO = 0.4
+WEIGHT_LATENCY = 0.2
+WEIGHT_JITTER = 0.1
+WEIGHT_PACKET_LOSS = 0.15
+WEIGHT_AVAILABILITY = 0.15
+
 
 @dataclass(slots=True)
 class ServiceStatus:
@@ -170,18 +185,23 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return round(mean(ratios) * 100.0, 2)
 
     def _calculate_score(self, sample: dict[str, float]) -> float:
-        contract_ratio = min(1.2, max(0.0, self._contract_ratio_percent(sample) / 100.0))
-        latency_factor = max(0.0, 1.0 - (sample["ping"] / 200.0))
-        jitter_factor = max(0.0, 1.0 - (sample["jitter"] / 100.0))
-        packet_loss_factor = max(0.0, 1.0 - (sample["packet_loss"] / 10.0))
-        availability_factor = max(0.0, sample["availability"] / 100.0)
+        contract_ratio = min(
+            MAX_CONTRACT_RATIO_MULTIPLIER,
+            max(0.0, self._contract_ratio_percent(sample) / PERCENT_BASE),
+        )
+        latency_factor = max(0.0, 1.0 - (sample["ping"] / PING_THRESHOLD_MS))
+        jitter_factor = max(0.0, 1.0 - (sample["jitter"] / JITTER_THRESHOLD_MS))
+        packet_loss_factor = max(
+            0.0, 1.0 - (sample["packet_loss"] / PACKET_LOSS_THRESHOLD_PERCENT)
+        )
+        availability_factor = max(0.0, sample["availability"] / PERCENT_BASE)
         score = (
-            contract_ratio * 0.4
-            + latency_factor * 0.2
-            + jitter_factor * 0.1
-            + packet_loss_factor * 0.15
-            + availability_factor * 0.15
-        ) * 100.0
+            contract_ratio * WEIGHT_CONTRACT_RATIO
+            + latency_factor * WEIGHT_LATENCY
+            + jitter_factor * WEIGHT_JITTER
+            + packet_loss_factor * WEIGHT_PACKET_LOSS
+            + availability_factor * WEIGHT_AVAILABILITY
+        ) * PERCENT_BASE
         return round(max(0.0, min(100.0, score)), 2)
 
     def _quality_class(self, score: float) -> str:
