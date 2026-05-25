@@ -36,7 +36,7 @@
           "ping_interval": "Ping-Intervall (Sekunden)",
           "status_interval": "Status-Intervall (Sekunden)",
           "external_opt_in": "Externe Statusprüfungen aktivieren",
-          "test_targets": "Testziele (eine Zeile pro Ziel)",
+          "test_targets": "Testziele (eine Zeile pro Ziel, IP/FQDN/URL)",
           "agent_url": "Lokale Agent-URL"
         }
       }

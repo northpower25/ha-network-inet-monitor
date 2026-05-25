@@ -48,7 +48,10 @@ WEIGHT_JITTER = 0.1
 WEIGHT_PACKET_LOSS = 0.15
 WEIGHT_AVAILABILITY = 0.15
 
+# Keep enough history for trend metrics while limiting memory growth.
+# Effective lookback depends on configured polling intervals.
 MAX_SAMPLE_HISTORY = 500
+# Project-specific quality grade boundaries for A-E classification.
 QUALITY_CLASS_A_THRESHOLD = 90.0
 QUALITY_CLASS_B_THRESHOLD = 75.0
 QUALITY_CLASS_C_THRESHOLD = 60.0
