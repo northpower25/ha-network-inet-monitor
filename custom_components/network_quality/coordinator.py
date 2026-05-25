@@ -19,10 +19,12 @@ from .const import (
     CONF_EXTERNAL_OPT_IN,
     CONF_PING_INTERVAL,
     CONF_SERVICE_STATUSES,
+    CONF_SPEEDTEST_INTERVAL,
     CONF_STATUS_INTERVAL,
     CONF_TEST_TARGETS,
     CONF_UPLOAD_NORMAL,
     DEFAULT_PING_INTERVAL,
+    DEFAULT_SPEEDTEST_INTERVAL,
     DEFAULT_STATUS_INTERVAL,
     DEFAULT_TEST_TARGETS,
     DOMAIN,
@@ -46,6 +48,12 @@ WEIGHT_JITTER = 0.1
 WEIGHT_PACKET_LOSS = 0.15
 WEIGHT_AVAILABILITY = 0.15
 
+MAX_SAMPLE_HISTORY = 500
+QUALITY_CLASS_A_THRESHOLD = 90.0
+QUALITY_CLASS_B_THRESHOLD = 75.0
+QUALITY_CLASS_C_THRESHOLD = 60.0
+QUALITY_CLASS_D_THRESHOLD = 40.0
+
 
 @dataclass(slots=True)
 class ServiceStatus:
@@ -65,6 +73,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._samples: list[dict[str, float]] = []
 
         refresh_interval = min(
+            int(entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL)),
             int(entry.options.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL)),
             int(entry.options.get(CONF_STATUS_INTERVAL, DEFAULT_STATUS_INTERVAL)),
         )
@@ -129,7 +138,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "availability": min(max(0.0, availability), 100.0),
         }
         self._samples.append(sample)
-        self._samples = self._samples[-500:]
+        self._samples = self._samples[-MAX_SAMPLE_HISTORY:]
 
         score = self._calculate_score(sample)
         return {
@@ -205,13 +214,13 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return round(max(0.0, min(100.0, score)), 2)
 
     def _quality_class(self, score: float) -> str:
-        if score >= 90:
+        if score >= QUALITY_CLASS_A_THRESHOLD:
             return "A"
-        if score >= 75:
+        if score >= QUALITY_CLASS_B_THRESHOLD:
             return "B"
-        if score >= 60:
+        if score >= QUALITY_CLASS_C_THRESHOLD:
             return "C"
-        if score >= 40:
+        if score >= QUALITY_CLASS_D_THRESHOLD:
             return "D"
         return "E"
 

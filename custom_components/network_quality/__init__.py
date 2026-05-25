@@ -12,6 +12,7 @@ from homeassistant.helpers.typing import ConfigType
 import voluptuous as vol
 
 from .const import (
+    ATTR_ENTRY_ID,
     ATTR_INCLUDE_RAW,
     ATTR_OUTPUT_PATH,
     DATA_COORDINATOR,
@@ -32,15 +33,20 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def _async_export_report(call: ServiceCall) -> None:
         include_raw = call.data.get(ATTR_INCLUDE_RAW, False)
         output_path = call.data.get(ATTR_OUTPUT_PATH)
+        target_entry_id = call.data.get(ATTR_ENTRY_ID)
 
         entries = hass.config_entries.async_entries(DOMAIN)
         if not entries:
             _LOGGER.warning("No config entry found for report export")
             return
 
-        coordinator: NetworkQualityCoordinator = hass.data[DOMAIN][entries[0].entry_id][
-            DATA_COORDINATOR
-        ]
+        entry_id = target_entry_id or entries[0].entry_id
+        entry_data = hass.data[DOMAIN].get(entry_id)
+        if not entry_data:
+            _LOGGER.warning("Config entry id %s not found for report export", entry_id)
+            return
+
+        coordinator: NetworkQualityCoordinator = entry_data[DATA_COORDINATOR]
         report_data = coordinator.build_report_payload(include_raw=include_raw)
 
         if output_path:
@@ -70,6 +76,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             {
                 vol.Optional(ATTR_OUTPUT_PATH): cv.string,
                 vol.Optional(ATTR_INCLUDE_RAW, default=False): cv.boolean,
+                vol.Optional(ATTR_ENTRY_ID): cv.string,
             }
         ),
     )

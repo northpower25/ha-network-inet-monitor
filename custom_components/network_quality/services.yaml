@@ -16,6 +16,12 @@ export_report:
       default: false
       selector:
         boolean:
+    entry_id:
+      name: Config entry id
+      description: Optional config entry id for selecting a specific integration instance.
+      required: false
+      selector:
+        text:
 
 install_dashboard:
   name: Install dashboard blueprint
