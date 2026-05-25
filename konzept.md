@@ -82,7 +82,7 @@ Der Benutzer gibt im Config Flow mindestens an:
 
 1. **Internetanbieter (ISP)**  
 2. **Gebuchten Tarif** (mind./normal/max Download/Upload)  
-3. **Routertyp** (z. B. Fritz!Box, OpenWRT, UniFi, Sonstige)
+3. **Routertyp** (z. B. FRITZ!Box, OpenWRT, UniFi, Sonstige)
 
 Optionale Schritte:
 - Standort/Region (PLZ oder Bundesland) für Störungsfilter
@@ -196,7 +196,7 @@ Ausgaben:
 | Messausführung | Wo laufen aktive Speedtests/Pings? | HA direkt / Add-on / externer Agent | Add-on oder externer Agent | Stabilität, Ressourcen, Wartbarkeit |
 | Speedtest-Backend | Welche Engine wird genutzt? | Ookla CLI / librespeed / eigener Endpoint-Mix | Abstraktionsschicht + austauschbares Backend | Genauigkeit, Lizenz, Abhängigkeiten |
 | BNetzA-Abbildung | Welche Regelmenge wird initial umgesetzt? | Minimal (Tarifquote) / erweitert (Perzentile + Zeitfenster) | erweitert, aber modular | Vergleichbarkeit, Komplexität |
-| Routerintegration | Welche Router zuerst nativ? | Fritz!Box / OpenWRT / UniFi | Fritz!Box zuerst, danach Adaptermodell | Time-to-market, Datenqualität |
+| Routerintegration | Welche Router zuerst nativ? | FRITZ!Box / OpenWRT / UniFi | FRITZ!Box zuerst, danach Adaptermodell | Time-to-market, Datenqualität |
 | ISP-Störungsdaten | Welche Quellen sind rechtlich/technisch robust? | Offizielle APIs/Feeds / Aggregatoren / Scraping | bevorzugt API/Feed, Scraping nur fallback | Zuverlässigkeit, Compliance |
 | Regionserkennung | Wie wird regional gefiltert? | manuelle PLZ/Bundesland / Geo-IP | manuelle Angabe im Config Flow | Präzision, Datenschutz |
 | Dashboard-Bereitstellung | Wie „auto-installiert“ bereitstellen? | Lovelace-Resource + Dashboard-JSON / Blueprint-Ansatz | Dashboard-JSON + Setup-Service | UX, Wartung |
@@ -231,4 +231,3 @@ Ausgaben:
   https://github.com/FlorianZimmer/Breitbandmessung-Automat
 - Beispiel einer Integration mit eigenem Dashboardansatz:  
   https://github.com/northpower25/HA-Fuel-Watcher-Car-Advanced-Manager-FWCAM
-
