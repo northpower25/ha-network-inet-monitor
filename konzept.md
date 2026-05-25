@@ -203,7 +203,7 @@ Ausgaben:
 | PDF-Export | Wie wird PDF erzeugt? | HTML→PDF lokal / externes Rendering | lokal im Add-on/Agent | Sicherheit, Portabilität |
 | Datenspeicherung | Wo liegen Roh- und Aggregatdaten? | nur Recorder / Recorder+Long-term / InfluxDB optional | Recorder + optional InfluxDB | Historie, Performance |
 | Scoring-Modell | Wie wird der 0–100 Score gewichtet? | statisch / nutzerdefiniert | statische Defaults + konfigurierbar | Verständlichkeit, Vergleichbarkeit |
-| Alarmstrategie | Schwellwerte global oder profilbasiert? | global / Tageszeitprofile | globale Defaults + Expertenmodus | Einfachheit, Fehlalarme |
+| Alarmstrategie | Schwellwerte global oder profilbasiert? | global / Tageszeitprofile | globale Defaults + Expertenmodus | Einfache Erstkonfiguration, später feinere Profile zur Reduktion von Fehlalarmen |
 | Multi-WAN | Wird Redundanz früh unterstützt? | nein / später / von Anfang an | später (Phase 2) | Scope, Architektur |
 
 ---

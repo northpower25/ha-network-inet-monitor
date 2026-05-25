@@ -16,7 +16,7 @@ Diese Datei ist vor **jeder** Änderung zu lesen und als verbindliche Arbeitsgru
 - Config Flow mit Pflichtfeldern:
   - Internetanbieter
   - gebuchter Tarif (mind./normal/max)
-  - Routertyp (z. B. Fritz!Box)
+  - Routertyp (z. B. FRITZ!Box)
 - Eigenes Dashboard mit grafischer + tabellarischer QoS-Auswertung bereitstellen.
 - PDF-Export für Nachweis-/Supportberichte ermöglichen.
 
@@ -78,4 +78,3 @@ Diese Datei ist vor **jeder** Änderung zu lesen und als verbindliche Arbeitsgru
 - Ungeprüfte Scraping-Logik als Primärquelle verwenden
 - PDF-/Dashboard-Features als optionalen Nachgedanken behandeln
 - Nicht dokumentierte Magic Numbers für QoS-Score verwenden
-
