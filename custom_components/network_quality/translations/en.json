@@ -1,0 +1,84 @@
+{
+  "title": "Network Quality",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Network Quality",
+        "description": "Configure ISP, contract data and router type.",
+        "data": {
+          "name": "Name",
+          "isp": "Internet provider (ISP)",
+          "router_type": "Router type",
+          "download_min": "Download minimum (Mbit/s)",
+          "download_normal": "Download normal (Mbit/s)",
+          "download_max": "Download maximum (Mbit/s)",
+          "upload_min": "Upload minimum (Mbit/s)",
+          "upload_normal": "Upload normal (Mbit/s)",
+          "upload_max": "Upload maximum (Mbit/s)"
+        }
+      }
+    },
+    "error": {
+      "download_range": "Download values must satisfy min ≤ normal ≤ max.",
+      "upload_range": "Upload values must satisfy min ≤ normal ≤ max."
+    },
+    "abort": {
+      "already_configured": "This ISP is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Network Quality options",
+        "data": {
+          "region": "Region",
+          "speedtest_interval": "Speedtest interval (seconds)",
+          "ping_interval": "Ping interval (seconds)",
+          "status_interval": "Status interval (seconds)",
+          "external_opt_in": "Enable external status checks",
+          "test_targets": "Test targets (one per line)",
+          "agent_url": "Local agent URL"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "internet_download": {
+        "name": "Internet download"
+      },
+      "internet_upload": {
+        "name": "Internet upload"
+      },
+      "ping_public": {
+        "name": "Public ping"
+      },
+      "packet_loss": {
+        "name": "Packet loss"
+      },
+      "jitter": {
+        "name": "Jitter"
+      },
+      "availability": {
+        "name": "Availability"
+      },
+      "contract_ratio": {
+        "name": "Contract ratio"
+      },
+      "quality_score": {
+        "name": "Quality score"
+      },
+      "quality_class": {
+        "name": "Quality class"
+      }
+    },
+    "binary_sensor": {
+      "internet_online": {
+        "name": "Internet online"
+      },
+      "service_status": {
+        "name": "Service status"
+      }
+    }
+  }
+}

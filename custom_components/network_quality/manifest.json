@@ -1,0 +1,16 @@
+{
+  "domain": "network_quality",
+  "name": "Network Quality Internet Monitor",
+  "codeowners": [
+    "@northpower25"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/northpower25/ha-network-inet-monitor",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "loggers": [
+    "custom_components.network_quality"
+  ],
+  "requirements": [],
+  "version": "0.1.0"
+}

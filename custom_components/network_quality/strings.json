@@ -1,0 +1,10 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Network Quality",
+        "description": "Configure ISP, contract data and router type."
+      }
+    }
+  }
+}
