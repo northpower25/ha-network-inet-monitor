@@ -193,18 +193,18 @@ Ausgaben:
 
 | Bereich | Offene Entscheidung | Optionen | Empfehlung (Start) | Auswirkung |
 |---|---|---|---|---|
-| Messausführung | Wo laufen aktive Speedtests/Pings? | HA direkt / Add-on / externer Agent | Add-on oder externer Agent | Stabilität, Ressourcen, Wartbarkeit |
-| Speedtest-Backend | Welche Engine wird genutzt? | Ookla CLI / librespeed / eigener Endpoint-Mix | Abstraktionsschicht + austauschbares Backend | Genauigkeit, Lizenz, Abhängigkeiten |
-| BNetzA-Abbildung | Welche Regelmenge wird initial umgesetzt? | Minimal (Tarifquote) / erweitert (Perzentile + Zeitfenster) | erweitert, aber modular | Vergleichbarkeit, Komplexität |
+| Messausführung | Wo laufen aktive Speedtests/Pings? | HA direkt / Add-on oder externer Agent | Add-on oder externer Agent | Stabilität, Ressourcen, Wartbarkeit |
+| Speedtest-Backend | Welche Engine wird genutzt? | Abstraktionsschicht + austauschbares Backend | Abstraktionsschicht + austauschbares Backend | Genauigkeit, Lizenz, Abhängigkeiten |
+| BNetzA-Abbildung | Welche Regelmenge wird initial umgesetzt? | erweitert (Perzentile + Zeitfenster) | erweitert, aber modular | Vergleichbarkeit, Komplexität |
 | Routerintegration | Welche Router zuerst nativ? | FRITZ!Box / OpenWRT / UniFi | FRITZ!Box zuerst, danach Adaptermodell | Time-to-market, Datenqualität |
-| ISP-Störungsdaten | Welche Quellen sind rechtlich/technisch robust? | Offizielle APIs/Feeds / Aggregatoren / Scraping | bevorzugt API/Feed, Scraping nur fallback | Zuverlässigkeit, Compliance |
-| Regionserkennung | Wie wird regional gefiltert? | manuelle PLZ/Bundesland / Geo-IP | manuelle Angabe im Config Flow | Präzision, Datenschutz |
-| Dashboard-Bereitstellung | Wie „auto-installiert“ bereitstellen? | Lovelace-Resource + Dashboard-JSON / Blueprint-Ansatz | Dashboard-JSON + Setup-Service | UX, Wartung |
-| PDF-Export | Wie wird PDF erzeugt? | HTML→PDF lokal / externes Rendering | lokal im Add-on/Agent | Sicherheit, Portabilität |
-| Datenspeicherung | Wo liegen Roh- und Aggregatdaten? | nur Recorder / Recorder+Long-term / InfluxDB optional | Recorder + optional InfluxDB | Historie, Performance |
-| Scoring-Modell | Wie wird der 0–100 Score gewichtet? | statisch / nutzerdefiniert | statische Defaults + konfigurierbar | Verständlichkeit, Vergleichbarkeit |
-| Alarmstrategie | Schwellwerte global oder profilbasiert? | global / Tageszeitprofile | globale Defaults + Expertenmodus | Einfache Erstkonfiguration, später feinere Profile zur Reduktion von Fehlalarmen |
-| Multi-WAN | Wird Redundanz früh unterstützt? | nein / später / von Anfang an | später (Phase 2) | Scope, Architektur |
+| ISP-Störungsdaten | Welche Quellen sind rechtlich/technisch robust? | bevorzugt API/Feed, Scraping nur fallback | bevorzugt API/Feed, Scraping nur fallback | Zuverlässigkeit, Compliance |
+| Regionserkennung | Wie wird regional gefiltert? | manuelle Angabe im Config Flow | manuelle Angabe im Config Flow | Präzision, Datenschutz |
+| Dashboard-Bereitstellung | Wie „auto-installiert“ bereitstellen? | Dashboard-JSON + Setup-Service | Dashboard-JSON + Setup-Service | UX, Wartung |
+| PDF-Export | Wie wird PDF erzeugt? | HTML→PDF lokal im Add-on/Agent | lokal im Add-on/Agent | Sicherheit, Portabilität |
+| Datenspeicherung | Wo liegen Roh- und Aggregatdaten? | Recorder + optional InfluxDB | Recorder + optional InfluxDB | Historie, Performance |
+| Scoring-Modell | Wie wird der 0–100 Score gewichtet? | statische Defaults + konfigurierbar | statische Defaults + konfigurierbar | Verständlichkeit, Vergleichbarkeit |
+| Alarmstrategie | Schwellwerte global oder profilbasiert? | globale Defaults + Expertenmodus | globale Defaults + Expertenmodus | Einfache Erstkonfiguration, später feinere Profile zur Reduktion von Fehlalarmen |
+| Multi-WAN | Wird Redundanz früh unterstützt? | später (Phase 2) | später (Phase 2) | Scope, Architektur |
 
 ---
 
