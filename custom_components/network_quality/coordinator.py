@@ -28,6 +28,7 @@ from .const import (
     DEFAULT_STATUS_INTERVAL,
     DEFAULT_TEST_TARGETS,
     DOMAIN,
+    MIN_UPDATE_INTERVAL_SECONDS,
     UPDATE_TIMEOUT_SECONDS,
 )
 
@@ -84,7 +85,9 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             hass,
             _LOGGER,
             name=f"{DOMAIN}_{entry.entry_id}",
-            update_interval=timedelta(seconds=max(10, refresh_interval)),
+            update_interval=timedelta(
+                seconds=max(MIN_UPDATE_INTERVAL_SECONDS, refresh_interval)
+            ),
         )
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -120,7 +123,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 jitter = float(payload.get("jitter_ms", 0.0))
                 packet_loss = float(payload.get("packet_loss_percent", 0.0))
                 availability = float(payload.get("availability_percent", 0.0))
-                online = bool(payload.get("online", download > 0 or ping > 0))
+                online = bool(payload.get("online", self._is_online_from_metrics(download, ping)))
             else:
                 online = True
                 download = float(contract.get(CONF_DOWNLOAD_NORMAL, 0.0))
@@ -155,6 +158,10 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "quality_class": self._quality_class(score),
             "rolling": self._rolling_aggregates(),
         }
+
+    def _is_online_from_metrics(self, download_mbps: float, ping_ms: float) -> bool:
+        """Infer online state when agent payload does not provide an explicit flag."""
+        return download_mbps > 0 or ping_ms > 0
 
     def _build_service_statuses(
         self, services: list[str], external_opt_in: bool, online: bool

@@ -56,5 +56,7 @@ SERVICE_INSTALL_DASHBOARD = "install_dashboard"
 ATTR_OUTPUT_PATH = "output_path"
 ATTR_INCLUDE_RAW = "include_raw"
 ATTR_ENTRY_ID = "entry_id"
+ATTR_INSTANCE_ID = "instance_id"
 
 UPDATE_TIMEOUT_SECONDS = 10
+MIN_UPDATE_INTERVAL_SECONDS = 10

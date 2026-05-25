@@ -16,9 +16,9 @@ export_report:
       default: false
       selector:
         boolean:
-    entry_id:
-      name: Config entry id
-      description: Optional config entry id for selecting a specific integration instance.
+    instance_id:
+      name: Integration instance id
+      description: Optional instance id to target a specific Network Quality integration.
       required: false
       selector:
         text:

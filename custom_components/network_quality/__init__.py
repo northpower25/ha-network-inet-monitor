@@ -14,6 +14,7 @@ import voluptuous as vol
 from .const import (
     ATTR_ENTRY_ID,
     ATTR_INCLUDE_RAW,
+    ATTR_INSTANCE_ID,
     ATTR_OUTPUT_PATH,
     DATA_COORDINATOR,
     DOMAIN,
@@ -33,7 +34,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def _async_export_report(call: ServiceCall) -> None:
         include_raw = call.data.get(ATTR_INCLUDE_RAW, False)
         output_path = call.data.get(ATTR_OUTPUT_PATH)
-        target_entry_id = call.data.get(ATTR_ENTRY_ID)
+        target_entry_id = call.data.get(ATTR_INSTANCE_ID) or call.data.get(ATTR_ENTRY_ID)
 
         entries = hass.config_entries.async_entries(DOMAIN)
         if not entries:
@@ -76,6 +77,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             {
                 vol.Optional(ATTR_OUTPUT_PATH): cv.string,
                 vol.Optional(ATTR_INCLUDE_RAW, default=False): cv.boolean,
+                vol.Optional(ATTR_INSTANCE_ID): cv.string,
                 vol.Optional(ATTR_ENTRY_ID): cv.string,
             }
         ),
