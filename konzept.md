@@ -89,6 +89,8 @@ Optionale Schritte:
 - Messintervall (Speedtest, Ping, Statuschecks)
 - Opt-in für externe Quellen/Anonymisierung
 - Auswahl bevorzugter Zielserver
+- **Test-Adressen verwalten:** vorgeschlagene Standardziele + manuell ergänzbare Ziele (IP, FQDN oder URL), inkl. Aktivieren/Deaktivieren und Priorisierung
+- **Dienststatus-Quellen auswählen (Checkboxen):** vordefinierte Dienste/Kategorien (z. B. Amazon, Google, Microsoft, Netflix, Spotify, Discord, WhatsApp, YouTube, OpenAI, Claude, GitHub) einzeln aktivierbar
 
 Wichtig: Routertyp steuert optionale Adapterpfade (z. B. FRITZ!Box-nahe Datenerhebung analog Home-Assistant-FRITZ-Integration).
 
@@ -106,6 +108,33 @@ Wichtig: Routertyp steuert optionale Adapterpfade (z. B. FRITZ!Box-nahe Datenerh
 - ISP-Störungsseiten (wenn technisch/rechtlich zulässig)
 - Statusaggregatoren (z. B. Downdetector, verfügbare RSS/Statusfeeds)
 - Globale Dienste (Cloudflare, AWS, Azure, GCP, DNS-Anbieter)
+
+### Konfigurierbare Dienst-Ausfallquellen (Setup per Checkbox)
+
+Vorgesehene Quellenstrategie je Dienst:
+1. **Primär:** offizielle Statusquellen des Dienstes (API, JSON, RSS/Atom, offizielles Status-Dashboard)
+2. **Sekundär:** Statuspage.io-basierte Seiten (inkl. standardisierter Komponenten-/Incident-Daten)
+3. **Fallback:** ausgewählte Aggregatoren/Feeds mit klarer Kennzeichnung geringerer Verlässlichkeit
+
+Beispielhafte Zuordnung für den initialen Katalog (im Config Flow auswählbar):
+
+| Dienst/Kategorie | Primärquelle (bevorzugt) | Alternative/Fallback |
+|---|---|---|
+| Amazon (AWS) | Offizielles AWS Service Health/Status Dashboard | Statuspage-Feed, falls vorhanden |
+| Google (inkl. YouTube) | Google Cloud/Workspace/YouTube Statusseiten | RSS/Atom-Feeds der Statusseiten |
+| Microsoft | Azure-/Microsoft-365-Statusquellen | öffentliche Statusseiten je Produkt |
+| Netflix | Offizielles Netflix-Statusdashboard | Statuspage.io-Daten, falls genutzt |
+| Spotify | Offizielle Spotify-Statusseite | Statuspage.io-Daten, falls genutzt |
+| Discord | Offizielle Discord-Statusseite | Statuspage.io-Daten, falls genutzt |
+| WhatsApp | Offizielle Meta/WhatsApp-Störungsmeldungen (falls öffentlich) | verlässliche Incident-Feeds mit Kennzeichnung |
+| OpenAI | Offizielle OpenAI-Statusseite | Statuspage.io-Daten, falls genutzt |
+| Claude (Anthropic) | Offizielle Anthropic-Statusseite | Statuspage.io-Daten, falls genutzt |
+| GitHub | Offizielle GitHub-Statusseite | Statuspage.io API/Feed |
+
+Hinweis zur Umsetzung:
+- Quellen werden vor Aktivierung technisch/rechtlich validiert (Verfügbarkeit, Rate Limits, Nutzungsbedingungen).
+- Im Config Flow werden Dienste als Checkboxen angezeigt; pro aktivem Dienst wird die bestverfügbare Quelle gemäß Priorität genutzt.
+- Optionaler Expertenmodus: Quelle pro Dienst manuell überschreiben.
 
 ### Architekturprinzip
 - Messausführung nicht schwergewichtig im HA-Core
@@ -198,6 +227,7 @@ Ausgaben:
 | BNetzA-Abbildung | Welche Regelmenge wird initial umgesetzt? | erweitert (Perzentile + Zeitfenster) | erweitert, aber modular | Vergleichbarkeit, Komplexität |
 | Routerintegration | Welche Router zuerst nativ? | FRITZ!Box / OpenWRT / UniFi | FRITZ!Box zuerst, danach Adaptermodell | Time-to-market, Datenqualität |
 | ISP-Störungsdaten | Welche Quellen sind rechtlich/technisch robust? | bevorzugt API/Feed, Scraping nur fallback | bevorzugt API/Feed, Scraping nur fallback | Zuverlässigkeit, Compliance |
+| Dienststatus-Katalog | Welche externen Dienste sind im Setup auswählbar? | fester Startkatalog + später erweiterbar | Startkatalog (Amazon, Google/YouTube, Microsoft, Netflix, Spotify, Discord, WhatsApp, OpenAI, Claude, GitHub) | Nutzwert, Pflegeaufwand, API-Abhängigkeiten |
 | Regionserkennung | Wie wird regional gefiltert? | manuelle Angabe im Config Flow | manuelle Angabe im Config Flow | Präzision, Datenschutz |
 | Dashboard-Bereitstellung | Wie „auto-installiert“ bereitstellen? | Dashboard-JSON + Setup-Service | Dashboard-JSON + Setup-Service | UX, Wartung |
 | PDF-Export | Wie wird PDF erzeugt? | HTML→PDF lokal im Add-on/Agent | lokal im Add-on/Agent | Sicherheit, Portabilität |
