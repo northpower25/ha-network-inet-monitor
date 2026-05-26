@@ -93,19 +93,16 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             dashboard_template = json.loads(raw_data)
         except json.JSONDecodeError:
             _LOGGER.exception("Failed to parse dashboard template JSON")
-            await _async_emit_dashboard_template()
             return False
 
         lovelace_data = hass.data.get(LOVELACE_DATA)
         if lovelace_data is None:
             _LOGGER.warning("Lovelace data not available, dashboard install skipped")
-            await _async_emit_dashboard_template()
             return False
 
         lovelace_dashboard = lovelace_data.dashboards.get(None)
         if lovelace_dashboard is None:
             _LOGGER.warning("Default Lovelace dashboard not available, dashboard install skipped")
-            await _async_emit_dashboard_template()
             return False
 
         try:
@@ -116,13 +113,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         config_views = dashboard_config.setdefault("views", [])
         if not isinstance(config_views, list):
             _LOGGER.warning("Default Lovelace dashboard has invalid views format")
-            await _async_emit_dashboard_template()
             return False
 
         template_views = dashboard_template.get("views", [])
         if not isinstance(template_views, list):
             _LOGGER.warning("Dashboard template has invalid views format")
-            await _async_emit_dashboard_template()
             return False
 
         existing_paths = {
@@ -197,7 +192,7 @@ async def _async_migrate_entities(hass: HomeAssistant, entry: ConfigEntry) -> No
     """Migrate legacy entity ids and unique ids to stable naming."""
     registry = er.async_get(hass)
     pattern = re.compile(
-        rf"^(sensor|binary_sensor)\.{re.escape(_ENTITY_DOMAIN_PREFIX)}{re.escape(entry.entry_id)}_(.+)$"
+        rf"^(sensor|binary_sensor)\.{re.escape(DOMAIN)}_{re.escape(entry.entry_id)}_(.+)$"
     )
     for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
         entity_domain = registry_entry.entity_id.split(".", 1)[0]
@@ -241,7 +236,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][entry.entry_id] = {DATA_COORDINATOR: coordinator}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # Run a second migration pass to normalize entity ids that may be created during setup.
+    # Run a second migration pass to normalize entity IDs that may be created during setup.
     await _async_migrate_entities(hass, entry)
     if not entry.options.get(CONF_DASHBOARD_AUTO_EMITTED, False):
         dashboard_installed = False
