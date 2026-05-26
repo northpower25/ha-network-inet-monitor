@@ -272,7 +272,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not dashboard_installed and not hass.is_running:
 
             async def _async_install_dashboard_on_started(_event) -> None:
-                await _async_try_dashboard_install()
+                if not await _async_try_dashboard_install():
+                    _LOGGER.warning("Automatic dashboard installation retry failed after startup")
 
             hass.bus.async_listen_once(
                 EVENT_HOMEASSISTANT_STARTED,
