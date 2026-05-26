@@ -13,13 +13,10 @@ Diese Repository-Version enthält ein MVP der HACS-fähigen Home-Assistant-Custo
   - Internetanbieter (ISP)
   - Routertyp
   - Vertragswerte für Download/Upload (min/normal/max)
+  - Monitoring-Optionen (Region, Intervalle, Testziele, Dienstauswahl, Agent-URL)
 - Options Flow für:
-  - Region
-  - Messintervalle (Speedtest/Ping/Status)
-  - Opt-in für externe Checks
-  - Testziele (zeilenweise konfigurierbar)
-  - auswählbare Dienststatus-Kategorien
-  - optionaler lokaler Agent-Endpunkt (`/metrics`)
+  - dieselben Felder wie im Setup-Flow (vollständig nachträglich anpassbar)
+  - Region mit Vorschlagswert aus Home-Assistant-Standortname
 - `DataUpdateCoordinator`-basierte Datenaufbereitung mit:
   - Download/Upload
   - Ping/Jitter/Paketverlust
@@ -27,6 +24,7 @@ Diese Repository-Version enthält ein MVP der HACS-fähigen Home-Assistant-Custo
   - Vertragsquote
   - Quality Score (0–100) + Qualitätsklasse A–E
 - Sensoren und Binary Sensoren für Kernmetriken und Dienststatus
+- Erweiterter Dienstkatalog inkl. Social Media und Mail/Webmail-Anbietern
 - Diagnostik mit Redaction sensibler Felder
 - Services:
   - `network_quality.export_report`

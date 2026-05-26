@@ -19,6 +19,7 @@ CONF_EXTERNAL_OPT_IN = "external_opt_in"
 CONF_TEST_TARGETS = "test_targets"
 CONF_SERVICE_STATUSES = "service_statuses"
 CONF_AGENT_URL = "agent_url"
+CONF_DASHBOARD_AUTO_EMITTED = "dashboard_auto_emitted"
 
 DEFAULT_SPEEDTEST_INTERVAL = 900
 DEFAULT_PING_INTERVAL = 60
@@ -46,6 +47,23 @@ AVAILABLE_SERVICE_CATALOG = [
     "claude",
     "github",
     "youtube",
+    "x",
+    "facebook",
+    "instagram",
+    "tiktok",
+    "linkedin",
+    "reddit",
+    "telegram",
+    "gmail",
+    "outlook_com",
+    "yahoo_mail",
+    "icloud_mail",
+    "proton_mail",
+    "strato",
+    "one_and_one",
+    "freenet",
+    "web_de",
+    "gmx",
 ]
 
 DATA_COORDINATOR = "coordinator"

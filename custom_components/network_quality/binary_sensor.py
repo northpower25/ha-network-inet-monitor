@@ -54,6 +54,7 @@ class NetworkQualityBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], B
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._attr_suggested_object_id = f"{DOMAIN}_{description.key}"
 
     @property
     def is_on(self) -> bool | None:
@@ -71,8 +72,9 @@ class NetworkQualityServiceBinarySensor(CoordinatorEntity[NetworkQualityCoordina
         self._service_name = service_name
         self._attr_translation_key = "service_status"
         self._attr_unique_id = f"{entry.entry_id}_service_{service_name}"
+        self._attr_suggested_object_id = f"{DOMAIN}_service_{service_name}"
         self._attr_has_entity_name = True
-        self._attr_name = service_name.title()
+        self._attr_name = service_name.replace("_", " ").title()
 
     @property
     def is_on(self) -> bool | None:

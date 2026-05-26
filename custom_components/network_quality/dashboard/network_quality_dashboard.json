@@ -9,14 +9,14 @@
           "type": "entities",
           "title": "KPI",
           "entities": [
-            "sensor.internet_download",
-            "sensor.internet_upload",
-            "sensor.ping_public",
-            "sensor.packet_loss",
-            "sensor.jitter",
-            "sensor.availability",
-            "sensor.quality_score",
-            "sensor.quality_class"
+            "sensor.network_quality_internet_download",
+            "sensor.network_quality_internet_upload",
+            "sensor.network_quality_ping_public",
+            "sensor.network_quality_packet_loss",
+            "sensor.network_quality_jitter",
+            "sensor.network_quality_availability",
+            "sensor.network_quality_quality_score",
+            "sensor.network_quality_quality_class"
           ]
         },
         {
@@ -24,9 +24,9 @@
           "title": "Bandwidth and latency",
           "hours_to_show": 24,
           "entities": [
-            "sensor.internet_download",
-            "sensor.internet_upload",
-            "sensor.ping_public"
+            "sensor.network_quality_internet_download",
+            "sensor.network_quality_internet_upload",
+            "sensor.network_quality_ping_public"
           ]
         }
       ]
