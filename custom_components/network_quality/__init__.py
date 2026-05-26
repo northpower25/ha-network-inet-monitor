@@ -105,6 +105,22 @@ async def _async_install_dashboard(hass: HomeAssistant) -> bool:
     return True
 
 
+async def _async_install_and_emit_dashboard(
+    hass: HomeAssistant, entry: ConfigEntry | None = None
+) -> bool:
+    """Install dashboard views, emit template event and persist auto-install option."""
+    if not await _async_install_dashboard(hass):
+        return False
+
+    await _async_emit_dashboard_template(hass)
+    if entry and not entry.options.get(CONF_DASHBOARD_AUTO_EMITTED, False):
+        hass.config_entries.async_update_entry(
+            entry,
+            options={**entry.options, CONF_DASHBOARD_AUTO_EMITTED: True},
+        )
+    return True
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up integration."""
     hass.data.setdefault(DOMAIN, {})
@@ -141,10 +157,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         hass.bus.async_fire(f"{DOMAIN}_report_generated", report_data)
 
     async def _async_install_dashboard_service(call: ServiceCall) -> None:
-        installed = await _async_install_dashboard(hass)
-        if not installed:
+        if not await _async_install_and_emit_dashboard(hass):
             raise HomeAssistantError("Could not install Network Quality dashboard")
-        await _async_emit_dashboard_template(hass)
 
     hass.services.async_register(
         DOMAIN,
@@ -252,26 +266,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if not entry.options.get(CONF_DASHBOARD_AUTO_EMITTED, False):
         async def _async_try_dashboard_install() -> bool:
-            try:
-                dashboard_installed = await _async_install_dashboard(hass)
-            except HomeAssistantError:
+            if not await _async_install_and_emit_dashboard(hass, entry):
                 _LOGGER.warning("Automatic dashboard installation failed")
                 return False
-
-            if not dashboard_installed:
-                return False
-
-            await _async_emit_dashboard_template(hass)
-            hass.config_entries.async_update_entry(
-                entry,
-                options={**entry.options, CONF_DASHBOARD_AUTO_EMITTED: True},
-            )
             return True
 
         dashboard_installed = await _async_try_dashboard_install()
         if not dashboard_installed and not hass.is_running:
 
-            async def _async_install_dashboard_on_started(_event) -> None:
+            async def _async_install_dashboard_on_started(event) -> None:
+                del event
                 if not await _async_try_dashboard_install():
                     _LOGGER.warning("Automatic dashboard installation retry failed after startup")
 
