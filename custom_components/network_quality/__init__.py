@@ -176,16 +176,23 @@ def _extract_stable_key(entity_domain: str, unique_id: str, entry_id: str) -> st
 
     if entity_domain == "sensor" and candidate in _SUPPORTED_SENSOR_KEYS:
         return candidate
-    if entity_domain == "binary_sensor" and (
-        candidate in _SUPPORTED_BINARY_KEYS or candidate.startswith("service_")
-    ):
+    if entity_domain == "binary_sensor" and candidate in _SUPPORTED_BINARY_KEYS:
         return candidate
+    if entity_domain == "binary_sensor" and candidate.startswith("service_"):
+        service_name = candidate.removeprefix("service_")
+        if re.fullmatch(r"[a-z0-9_]+", service_name):
+            return candidate
     return None
 
 
 def _expected_entity_id(entity_domain: str, stable_key: str) -> str:
     """Build expected entity id from domain and stable key."""
     return f"{entity_domain}.{DOMAIN}_{stable_key}"
+
+
+def _legacy_migration_target(match: re.Match[str]) -> str:
+    """Build normalized entity id target from a legacy id regex match."""
+    return f"{match.group(1)}.{_ENTITY_DOMAIN_PREFIX}{match.group(2)}"
 
 
 async def _async_migrate_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -212,7 +219,7 @@ async def _async_migrate_entities(hass: HomeAssistant, entry: ConfigEntry) -> No
 
         legacy_entity_match = pattern.match(registry_entry.entity_id)
         if legacy_entity_match and "new_entity_id" not in update_payload:
-            legacy_target = f"{legacy_entity_match.group(1)}.{_ENTITY_DOMAIN_PREFIX}{legacy_entity_match.group(2)}"
+            legacy_target = _legacy_migration_target(legacy_entity_match)
             if registry.async_get(legacy_target) is None:
                 update_payload["new_entity_id"] = legacy_target
 
@@ -236,7 +243,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][entry.entry_id] = {DATA_COORDINATOR: coordinator}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # Run a second migration pass for entities registered during setup with legacy-style IDs.
+    # Run a second migration pass because entities registered during platform setup can still
+    # initially appear with legacy-style IDs before they are normalized in the registry.
     await _async_migrate_entities(hass, entry)
     if not entry.options.get(CONF_DASHBOARD_AUTO_EMITTED, False):
         dashboard_installed = False
