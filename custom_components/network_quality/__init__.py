@@ -31,6 +31,7 @@ from .coordinator import NetworkQualityCoordinator
 
 PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 _LOGGER = logging.getLogger(__name__)
+_DASHBOARD_TEMPLATE_PATH = Path(__file__).parent / "dashboard" / "network_quality_dashboard.json"
 _ENTITY_DOMAIN_PREFIX = f"{DOMAIN}_"
 _SUPPORTED_SENSOR_KEYS = {
     "internet_download",
@@ -82,15 +83,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         hass.bus.async_fire(f"{DOMAIN}_report_generated", report_data)
 
     async def _async_emit_dashboard_template() -> None:
-        dashboard_file = (
-            Path(__file__).parent / "dashboard" / "network_quality_dashboard.json"
-        )
-        data = await hass.async_add_executor_job(dashboard_file.read_text, "utf-8")
+        data = await hass.async_add_executor_job(_DASHBOARD_TEMPLATE_PATH.read_text, "utf-8")
         hass.bus.async_fire(f"{DOMAIN}_dashboard_ready", {"dashboard_json": data})
 
     async def _async_install_dashboard() -> bool:
-        dashboard_file = Path(__file__).parent / "dashboard" / "network_quality_dashboard.json"
-        raw_data = await hass.async_add_executor_job(dashboard_file.read_text, "utf-8")
+        raw_data = await hass.async_add_executor_job(_DASHBOARD_TEMPLATE_PATH.read_text, "utf-8")
 
         try:
             dashboard_template = json.loads(raw_data)
@@ -244,6 +241,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][entry.entry_id] = {DATA_COORDINATOR: coordinator}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Run a second migration pass to normalize entity ids that may be created during setup.
     await _async_migrate_entities(hass, entry)
     if not entry.options.get(CONF_DASHBOARD_AUTO_EMITTED, False):
         dashboard_installed = False
