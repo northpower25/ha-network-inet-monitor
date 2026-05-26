@@ -90,7 +90,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensor entities."""
     coordinator: NetworkQualityCoordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    async_add_entities([NetworkQualitySensor(coordinator, entry, desc) for desc in SENSOR_DESCRIPTIONS])
+    async_add_entities([NetworkQualitySensor(coordinator, desc) for desc in SENSOR_DESCRIPTIONS])
 
 
 class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], SensorEntity):
@@ -101,12 +101,11 @@ class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], SensorE
     def __init__(
         self,
         coordinator: NetworkQualityCoordinator,
-        entry: ConfigEntry,
         description: NetworkQualitySensorDescription,
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._attr_unique_id = description.key
         self._attr_suggested_object_id = f"{DOMAIN}_{description.key}"
 
     @property
