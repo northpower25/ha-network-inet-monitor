@@ -236,7 +236,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][entry.entry_id] = {DATA_COORDINATOR: coordinator}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # Run a second migration pass to normalize entity IDs that may be created during setup.
+    # Run a second migration pass for entities registered during setup with legacy-style IDs.
     await _async_migrate_entities(hass, entry)
     if not entry.options.get(CONF_DASHBOARD_AUTO_EMITTED, False):
         dashboard_installed = False
