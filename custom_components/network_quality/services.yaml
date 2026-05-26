@@ -25,4 +25,4 @@ export_report:
 
 install_dashboard:
   name: Install dashboard blueprint
-  description: Emits dashboard JSON template via event for manual import.
+  description: Emits dashboard JSON template via event for import (also emitted automatically once after first setup).

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Set up Network Quality",
-        "description": "Configure ISP, contract data and router type."
+        "description": "Configure ISP, contract data, monitoring options and region details."
       }
     }
   }
