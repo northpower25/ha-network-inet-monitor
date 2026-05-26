@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
+import re
 
+from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.typing import ConfigType
@@ -17,9 +21,7 @@ from .const import (
     ATTR_INCLUDE_RAW,
     ATTR_INSTANCE_ID,
     ATTR_OUTPUT_PATH,
-    AVAILABLE_SERVICE_CATALOG,
     CONF_DASHBOARD_AUTO_EMITTED,
-    CONF_SERVICE_STATUSES,
     DATA_COORDINATOR,
     DOMAIN,
     SERVICE_EXPORT_REPORT,
@@ -29,6 +31,19 @@ from .coordinator import NetworkQualityCoordinator
 
 PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 _LOGGER = logging.getLogger(__name__)
+_ENTITY_DOMAIN_PREFIX = f"{DOMAIN}_"
+_SUPPORTED_SENSOR_KEYS = {
+    "internet_download",
+    "internet_upload",
+    "ping_public",
+    "packet_loss",
+    "jitter",
+    "availability",
+    "contract_ratio",
+    "quality_score",
+    "quality_class",
+}
+_SUPPORTED_BINARY_KEYS = {"internet_online"}
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -73,7 +88,67 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         data = await hass.async_add_executor_job(dashboard_file.read_text, "utf-8")
         hass.bus.async_fire(f"{DOMAIN}_dashboard_ready", {"dashboard_json": data})
 
-    async def _async_install_dashboard(call: ServiceCall) -> None:
+    async def _async_install_dashboard() -> bool:
+        dashboard_file = Path(__file__).parent / "dashboard" / "network_quality_dashboard.json"
+        raw_data = await hass.async_add_executor_job(dashboard_file.read_text, "utf-8")
+
+        try:
+            dashboard_template = json.loads(raw_data)
+        except json.JSONDecodeError:
+            _LOGGER.exception("Failed to parse dashboard template JSON")
+            await _async_emit_dashboard_template()
+            return False
+
+        lovelace_data = hass.data.get(LOVELACE_DATA)
+        if lovelace_data is None:
+            _LOGGER.warning("Lovelace data not available, dashboard install skipped")
+            await _async_emit_dashboard_template()
+            return False
+
+        lovelace_dashboard = lovelace_data.dashboards.get(None)
+        if lovelace_dashboard is None:
+            _LOGGER.warning("Default Lovelace dashboard not available, dashboard install skipped")
+            await _async_emit_dashboard_template()
+            return False
+
+        try:
+            dashboard_config = await lovelace_dashboard.async_load(False)
+        except HomeAssistantError:
+            dashboard_config = {"views": []}
+
+        config_views = dashboard_config.setdefault("views", [])
+        if not isinstance(config_views, list):
+            _LOGGER.warning("Default Lovelace dashboard has invalid views format")
+            await _async_emit_dashboard_template()
+            return False
+
+        template_views = dashboard_template.get("views", [])
+        if not isinstance(template_views, list):
+            _LOGGER.warning("Dashboard template has invalid views format")
+            await _async_emit_dashboard_template()
+            return False
+
+        existing_paths = {
+            view.get("path") for view in config_views if isinstance(view, dict) and view.get("path")
+        }
+        new_views = [
+            view
+            for view in template_views
+            if isinstance(view, dict) and view.get("path") not in existing_paths
+        ]
+        if not new_views:
+            return True
+
+        await lovelace_dashboard.async_save(
+            {**dashboard_config, "views": [*config_views, *new_views]}
+        )
+        _LOGGER.info("Installed %d Network Quality dashboard view(s)", len(new_views))
+        return True
+
+    async def _async_install_dashboard_service(call: ServiceCall) -> None:
+        installed = await _async_install_dashboard()
+        if not installed:
+            raise HomeAssistantError("Could not install Network Quality dashboard")
         await _async_emit_dashboard_template()
 
     hass.services.async_register(
@@ -92,46 +167,71 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.services.async_register(
         DOMAIN,
         SERVICE_INSTALL_DASHBOARD,
-        _async_install_dashboard,
+        _async_install_dashboard_service,
         schema=vol.Schema({}),
     )
 
     return True
 
 
-async def _async_migrate_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Migrate legacy entity ids containing the config entry id."""
-    registry = er.async_get(hass)
-    migration_pairs: dict[str, str] = {
-        f"sensor.{DOMAIN}_{entry.entry_id}_internet_download": f"sensor.{DOMAIN}_internet_download",
-        f"sensor.{DOMAIN}_{entry.entry_id}_internet_upload": f"sensor.{DOMAIN}_internet_upload",
-        f"sensor.{DOMAIN}_{entry.entry_id}_ping_public": f"sensor.{DOMAIN}_ping_public",
-        f"sensor.{DOMAIN}_{entry.entry_id}_packet_loss": f"sensor.{DOMAIN}_packet_loss",
-        f"sensor.{DOMAIN}_{entry.entry_id}_jitter": f"sensor.{DOMAIN}_jitter",
-        f"sensor.{DOMAIN}_{entry.entry_id}_availability": f"sensor.{DOMAIN}_availability",
-        f"sensor.{DOMAIN}_{entry.entry_id}_contract_ratio": f"sensor.{DOMAIN}_contract_ratio",
-        f"sensor.{DOMAIN}_{entry.entry_id}_quality_score": f"sensor.{DOMAIN}_quality_score",
-        f"sensor.{DOMAIN}_{entry.entry_id}_quality_class": f"sensor.{DOMAIN}_quality_class",
-        f"binary_sensor.{DOMAIN}_{entry.entry_id}_internet_online": f"binary_sensor.{DOMAIN}_internet_online",
-    }
-    known_services = set(AVAILABLE_SERVICE_CATALOG)
-    known_services.update(entry.options.get(CONF_SERVICE_STATUSES, []))
-    for service in known_services:
-        migration_pairs[
-            f"binary_sensor.{DOMAIN}_{entry.entry_id}_service_{service}"
-        ] = f"binary_sensor.{DOMAIN}_service_{service}"
+def _extract_stable_key(entity_domain: str, unique_id: str, entry_id: str) -> str | None:
+    """Extract stable key from a legacy unique id."""
+    legacy_prefix = f"{entry_id}_"
+    if unique_id.startswith(legacy_prefix):
+        candidate = unique_id.removeprefix(legacy_prefix)
+    else:
+        candidate = unique_id
 
-    for old_entity_id, new_entity_id in migration_pairs.items():
-        old_entry = registry.async_get(old_entity_id)
-        if old_entry is None or old_entry.config_entry_id != entry.entry_id:
+    if entity_domain == "sensor" and candidate in _SUPPORTED_SENSOR_KEYS:
+        return candidate
+    if entity_domain == "binary_sensor" and (
+        candidate in _SUPPORTED_BINARY_KEYS or candidate.startswith("service_")
+    ):
+        return candidate
+    return None
+
+
+def _expected_entity_id(entity_domain: str, stable_key: str) -> str:
+    """Build expected entity id from domain and stable key."""
+    return f"{entity_domain}.{DOMAIN}_{stable_key}"
+
+
+async def _async_migrate_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Migrate legacy entity ids and unique ids to stable naming."""
+    registry = er.async_get(hass)
+    pattern = re.compile(
+        rf"^(sensor|binary_sensor)\.{re.escape(_ENTITY_DOMAIN_PREFIX)}{re.escape(entry.entry_id)}_(.+)$"
+    )
+    for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        entity_domain = registry_entry.entity_id.split(".", 1)[0]
+        stable_key = _extract_stable_key(entity_domain, registry_entry.unique_id, entry.entry_id)
+        update_payload: dict[str, str] = {}
+
+        if stable_key and registry_entry.unique_id != stable_key:
+            update_payload["new_unique_id"] = stable_key
+
+        if stable_key:
+            target_entity_id = _expected_entity_id(entity_domain, stable_key)
+            if (
+                registry_entry.entity_id != target_entity_id
+                and registry.async_get(target_entity_id) is None
+            ):
+                update_payload["new_entity_id"] = target_entity_id
+
+        legacy_entity_match = pattern.match(registry_entry.entity_id)
+        if legacy_entity_match and "new_entity_id" not in update_payload:
+            legacy_target = f"{legacy_entity_match.group(1)}.{_ENTITY_DOMAIN_PREFIX}{legacy_entity_match.group(2)}"
+            if registry.async_get(legacy_target) is None:
+                update_payload["new_entity_id"] = legacy_target
+
+        if not update_payload:
             continue
-        if registry.async_get(new_entity_id) is not None:
-            continue
+
         try:
-            registry.async_update_entity(old_entity_id, new_entity_id=new_entity_id)
-            _LOGGER.info("Migrated entity id %s -> %s", old_entity_id, new_entity_id)
+            registry.async_update_entity(registry_entry.entity_id, **update_payload)
+            _LOGGER.info("Migrated entity %s with changes %s", registry_entry.entity_id, update_payload)
         except ValueError:
-            _LOGGER.warning("Could not migrate entity id %s to %s", old_entity_id, new_entity_id)
+            _LOGGER.warning("Could not migrate entity %s", registry_entry.entity_id)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -140,21 +240,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator = NetworkQualityCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
-    await _async_migrate_entity_ids(hass, entry)
+    await _async_migrate_entities(hass, entry)
 
     hass.data[DOMAIN][entry.entry_id] = {DATA_COORDINATOR: coordinator}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await _async_migrate_entities(hass, entry)
     if not entry.options.get(CONF_DASHBOARD_AUTO_EMITTED, False):
-        await hass.services.async_call(
-            DOMAIN,
-            SERVICE_INSTALL_DASHBOARD,
-            {},
-            blocking=True,
-        )
-        hass.config_entries.async_update_entry(
-            entry,
-            options={**entry.options, CONF_DASHBOARD_AUTO_EMITTED: True},
-        )
+        dashboard_installed = False
+        if hass.services.has_service(DOMAIN, SERVICE_INSTALL_DASHBOARD):
+            try:
+                await hass.services.async_call(
+                    DOMAIN,
+                    SERVICE_INSTALL_DASHBOARD,
+                    {},
+                    blocking=True,
+                )
+            except HomeAssistantError:
+                _LOGGER.warning("Automatic dashboard installation failed")
+            else:
+                dashboard_installed = True
+
+        if dashboard_installed:
+            hass.config_entries.async_update_entry(
+                entry,
+                options={**entry.options, CONF_DASHBOARD_AUTO_EMITTED: True},
+            )
     return True
 
 

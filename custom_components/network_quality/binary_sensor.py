@@ -33,10 +33,10 @@ async def async_setup_entry(
     """Set up binary sensor entities."""
     coordinator: NetworkQualityCoordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
     entities: list[BinarySensorEntity] = [
-        NetworkQualityBinarySensor(coordinator, entry, BASE_BINARY_DESCRIPTION)
+        NetworkQualityBinarySensor(coordinator, BASE_BINARY_DESCRIPTION)
     ]
     for service in entry.options.get(CONF_SERVICE_STATUSES, []):
-        entities.append(NetworkQualityServiceBinarySensor(coordinator, entry, service))
+        entities.append(NetworkQualityServiceBinarySensor(coordinator, service))
     async_add_entities(entities)
 
 
@@ -48,12 +48,11 @@ class NetworkQualityBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], B
     def __init__(
         self,
         coordinator: NetworkQualityCoordinator,
-        entry: ConfigEntry,
         description: NetworkQualityBinaryDescription,
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        self._attr_unique_id = description.key
         self._attr_suggested_object_id = f"{DOMAIN}_{description.key}"
 
     @property
@@ -67,11 +66,11 @@ class NetworkQualityBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], B
 class NetworkQualityServiceBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], BinarySensorEntity):
     """Service status sensor."""
 
-    def __init__(self, coordinator: NetworkQualityCoordinator, entry: ConfigEntry, service_name: str) -> None:
+    def __init__(self, coordinator: NetworkQualityCoordinator, service_name: str) -> None:
         super().__init__(coordinator)
         self._service_name = service_name
         self._attr_translation_key = "service_status"
-        self._attr_unique_id = f"{entry.entry_id}_service_{service_name}"
+        self._attr_unique_id = f"service_{service_name}"
         self._attr_suggested_object_id = f"{DOMAIN}_service_{service_name}"
         self._attr_has_entity_name = True
         self._attr_name = service_name.replace("_", " ").title()
