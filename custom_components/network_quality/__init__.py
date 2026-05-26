@@ -9,6 +9,7 @@ import re
 
 from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
@@ -47,6 +48,63 @@ _SUPPORTED_SENSOR_KEYS = {
 _SUPPORTED_BINARY_KEYS = {"internet_online"}
 
 
+async def _async_emit_dashboard_template(hass: HomeAssistant) -> None:
+    """Emit the dashboard template event."""
+    data = await hass.async_add_executor_job(_DASHBOARD_TEMPLATE_PATH.read_text, "utf-8")
+    hass.bus.async_fire(f"{DOMAIN}_dashboard_ready", {"dashboard_json": data})
+
+
+async def _async_install_dashboard(hass: HomeAssistant) -> bool:
+    """Install dashboard views into the default Lovelace dashboard."""
+    raw_data = await hass.async_add_executor_job(_DASHBOARD_TEMPLATE_PATH.read_text, "utf-8")
+
+    try:
+        dashboard_template = json.loads(raw_data)
+    except json.JSONDecodeError:
+        _LOGGER.exception("Failed to parse dashboard template JSON")
+        return False
+
+    lovelace_data = hass.data.get(LOVELACE_DATA)
+    if lovelace_data is None:
+        _LOGGER.warning("Lovelace data not available, dashboard install skipped")
+        return False
+
+    lovelace_dashboard = lovelace_data.dashboards.get(None)
+    if lovelace_dashboard is None:
+        _LOGGER.warning("Default Lovelace dashboard not available, dashboard install skipped")
+        return False
+
+    try:
+        dashboard_config = await lovelace_dashboard.async_load(False)
+    except HomeAssistantError:
+        dashboard_config = {"views": []}
+
+    config_views = dashboard_config.setdefault("views", [])
+    if not isinstance(config_views, list):
+        _LOGGER.warning("Default Lovelace dashboard has invalid views format")
+        return False
+
+    template_views = dashboard_template.get("views", [])
+    if not isinstance(template_views, list):
+        _LOGGER.warning("Dashboard template has invalid views format")
+        return False
+
+    existing_paths = {
+        view.get("path") for view in config_views if isinstance(view, dict) and view.get("path")
+    }
+    new_views = [
+        view
+        for view in template_views
+        if isinstance(view, dict) and view.get("path") not in existing_paths
+    ]
+    if not new_views:
+        return True
+
+    await lovelace_dashboard.async_save({**dashboard_config, "views": [*config_views, *new_views]})
+    _LOGGER.info("Installed %d Network Quality dashboard view(s)", len(new_views))
+    return True
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up integration."""
     hass.data.setdefault(DOMAIN, {})
@@ -82,66 +140,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
         hass.bus.async_fire(f"{DOMAIN}_report_generated", report_data)
 
-    async def _async_emit_dashboard_template() -> None:
-        data = await hass.async_add_executor_job(_DASHBOARD_TEMPLATE_PATH.read_text, "utf-8")
-        hass.bus.async_fire(f"{DOMAIN}_dashboard_ready", {"dashboard_json": data})
-
-    async def _async_install_dashboard() -> bool:
-        raw_data = await hass.async_add_executor_job(_DASHBOARD_TEMPLATE_PATH.read_text, "utf-8")
-
-        try:
-            dashboard_template = json.loads(raw_data)
-        except json.JSONDecodeError:
-            _LOGGER.exception("Failed to parse dashboard template JSON")
-            return False
-
-        lovelace_data = hass.data.get(LOVELACE_DATA)
-        if lovelace_data is None:
-            _LOGGER.warning("Lovelace data not available, dashboard install skipped")
-            return False
-
-        lovelace_dashboard = lovelace_data.dashboards.get(None)
-        if lovelace_dashboard is None:
-            _LOGGER.warning("Default Lovelace dashboard not available, dashboard install skipped")
-            return False
-
-        try:
-            dashboard_config = await lovelace_dashboard.async_load(False)
-        except HomeAssistantError:
-            dashboard_config = {"views": []}
-
-        config_views = dashboard_config.setdefault("views", [])
-        if not isinstance(config_views, list):
-            _LOGGER.warning("Default Lovelace dashboard has invalid views format")
-            return False
-
-        template_views = dashboard_template.get("views", [])
-        if not isinstance(template_views, list):
-            _LOGGER.warning("Dashboard template has invalid views format")
-            return False
-
-        existing_paths = {
-            view.get("path") for view in config_views if isinstance(view, dict) and view.get("path")
-        }
-        new_views = [
-            view
-            for view in template_views
-            if isinstance(view, dict) and view.get("path") not in existing_paths
-        ]
-        if not new_views:
-            return True
-
-        await lovelace_dashboard.async_save(
-            {**dashboard_config, "views": [*config_views, *new_views]}
-        )
-        _LOGGER.info("Installed %d Network Quality dashboard view(s)", len(new_views))
-        return True
-
     async def _async_install_dashboard_service(call: ServiceCall) -> None:
-        installed = await _async_install_dashboard()
+        installed = await _async_install_dashboard(hass)
         if not installed:
             raise HomeAssistantError("Could not install Network Quality dashboard")
-        await _async_emit_dashboard_template()
+        await _async_emit_dashboard_template(hass)
 
     hass.services.async_register(
         DOMAIN,
@@ -246,26 +249,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Run a second migration pass because entities registered during platform setup can still
     # initially appear with legacy-style IDs before they are normalized in the registry.
     await _async_migrate_entities(hass, entry)
+
     if not entry.options.get(CONF_DASHBOARD_AUTO_EMITTED, False):
-        dashboard_installed = False
-        if hass.services.has_service(DOMAIN, SERVICE_INSTALL_DASHBOARD):
+        async def _async_try_dashboard_install() -> bool:
             try:
-                await hass.services.async_call(
-                    DOMAIN,
-                    SERVICE_INSTALL_DASHBOARD,
-                    {},
-                    blocking=True,
-                )
+                dashboard_installed = await _async_install_dashboard(hass)
             except HomeAssistantError:
                 _LOGGER.warning("Automatic dashboard installation failed")
-            else:
-                dashboard_installed = True
+                return False
 
-        if dashboard_installed:
+            if not dashboard_installed:
+                return False
+
+            await _async_emit_dashboard_template(hass)
             hass.config_entries.async_update_entry(
                 entry,
                 options={**entry.options, CONF_DASHBOARD_AUTO_EMITTED: True},
             )
+            return True
+
+        dashboard_installed = await _async_try_dashboard_install()
+        if not dashboard_installed and not hass.is_running:
+
+            async def _async_install_dashboard_on_started(_event) -> None:
+                await _async_try_dashboard_install()
+
+            hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STARTED,
+                _async_install_dashboard_on_started,
+            )
+
     return True
 
 
