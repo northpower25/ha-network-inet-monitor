@@ -8,6 +8,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySen
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_SERVICE_STATUSES, DATA_COORDINATOR, DOMAIN
@@ -40,7 +41,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class NetworkQualityBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], BinarySensorEntity):
+class NetworkQualityBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], BinarySensorEntity, RestoreEntity):
     """Network online sensor."""
 
     entity_description: NetworkQualityBinaryDescription
@@ -54,16 +55,24 @@ class NetworkQualityBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], B
         self.entity_description = description
         self._attr_unique_id = description.key
         self._attr_suggested_object_id = f"{DOMAIN}_{description.key}"
+        self._attr_is_on: bool | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore last known state if coordinator data is not yet available."""
+        await super().async_added_to_hass()
+        if not self.coordinator.data:
+            if (last_state := await self.async_get_last_state()) is not None:
+                self._attr_is_on = last_state.state == "on"
 
     @property
     def is_on(self) -> bool | None:
         """Return online state."""
         if not self.coordinator.data:
-            return None
+            return self._attr_is_on
         return bool(self.coordinator.data.get("online"))
 
 
-class NetworkQualityServiceBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], BinarySensorEntity):
+class NetworkQualityServiceBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], BinarySensorEntity, RestoreEntity):
     """Service status sensor."""
 
     def __init__(self, coordinator: NetworkQualityCoordinator, service_name: str) -> None:
@@ -74,10 +83,20 @@ class NetworkQualityServiceBinarySensor(CoordinatorEntity[NetworkQualityCoordina
         self._attr_suggested_object_id = f"{DOMAIN}_service_{service_name}"
         self._attr_has_entity_name = True
         self._attr_name = service_name.replace("_", " ").title()
+        self._attr_is_on: bool | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore last known state if coordinator data is not yet available."""
+        await super().async_added_to_hass()
+        if not self.coordinator.data:
+            if (last_state := await self.async_get_last_state()) is not None:
+                self._attr_is_on = last_state.state == "on"
 
     @property
     def is_on(self) -> bool | None:
         """Return service status."""
+        if not self.coordinator.data:
+            return self._attr_is_on
         status = self._lookup_status()
         if status is None:
             return None

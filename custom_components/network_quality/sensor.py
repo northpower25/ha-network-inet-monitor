@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfDataRate, UnitOfTime
 from homeassistant.core import HomeAssistant
@@ -93,7 +93,7 @@ async def async_setup_entry(
     async_add_entities([NetworkQualitySensor(coordinator, desc) for desc in SENSOR_DESCRIPTIONS])
 
 
-class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], SensorEntity):
+class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], RestoreSensor):
     """Representation of a Network Quality sensor."""
 
     entity_description: NetworkQualitySensorDescription
@@ -107,12 +107,20 @@ class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], SensorE
         self.entity_description = description
         self._attr_unique_id = description.key
         self._attr_suggested_object_id = f"{DOMAIN}_{description.key}"
+        self._attr_native_value = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore last known state if coordinator data is not yet available."""
+        await super().async_added_to_hass()
+        if not self.coordinator.data:
+            if (last_sensor_data := await self.async_get_last_sensor_data()) is not None:
+                self._attr_native_value = last_sensor_data.native_value
 
     @property
     def native_value(self) -> Any:
         """Return sensor value."""
         if not self.coordinator.data:
-            return None
+            return self._attr_native_value
         return self.entity_description.value_fn(self.coordinator.data)
 
     @property
