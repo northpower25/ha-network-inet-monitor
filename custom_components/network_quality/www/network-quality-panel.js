@@ -34,7 +34,9 @@ const TABS = [
 
 const DEFAULT_INTERVAL = "day";
 const FILTER_INPUT_SELECTOR = "input[data-filter], select[data-filter]";
-const FILTER_INTERACTION_LOCK_MS = 2000;
+// Keep picker interactions stable even when browser date dialogs temporarily steal focus.
+const FILTER_INTERACTION_LOCK_MS = 5000;
+const ACTIVE_FILTER_POLL_MS = 150;
 const CHART_WIDTH = 320;
 const CHART_HEIGHT = 180;
 const CHART_TOP_PADDING = 8;
@@ -318,9 +320,9 @@ class NetworkQualityPanel extends HTMLElement {
     this._ensureData();
     if (!this._isFilterInteractionActive()) {
       this._render();
-      return;
+    } else {
+      this._scheduleDeferredRender();
     }
-    this._scheduleDeferredRender();
   }
 
   set panel(_) {}
@@ -372,7 +374,8 @@ class NetworkQualityPanel extends HTMLElement {
       clearTimeout(this._deferredRenderTimer);
       this._deferredRenderTimer = null;
     }
-    const waitMs = Math.max(this._filterInteractionLockUntil - Date.now(), 0);
+    const lockWaitMs = this._filterInteractionLockUntil - Date.now();
+    const waitMs = lockWaitMs > 0 ? lockWaitMs : ACTIVE_FILTER_POLL_MS;
     this._deferredRenderTimer = setTimeout(() => {
       this._deferredRenderTimer = null;
       if (!this._isFilterInteractionActive()) {
