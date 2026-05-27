@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import re
 
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
@@ -33,6 +34,7 @@ from .coordinator import NetworkQualityCoordinator
 PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 _LOGGER = logging.getLogger(__name__)
 _DASHBOARD_TEMPLATE_PATH = Path(__file__).parent / "dashboard" / "network_quality_dashboard.json"
+_WWW_DIR = Path(__file__).parent / "www"
 _ENTITY_DOMAIN_PREFIX = f"{DOMAIN}_"
 _SUPPORTED_SENSOR_KEYS = {
     "internet_download",
@@ -46,6 +48,70 @@ _SUPPORTED_SENSOR_KEYS = {
     "quality_class",
 }
 _SUPPORTED_BINARY_KEYS = {"internet_online"}
+_PANEL_VERSION = "1"
+_PANEL_FILENAME = "network-quality-panel.js"
+_PANEL_URL_PATH = "network-quality"
+_PANEL_ELEMENT_NAME = "network-quality-panel"
+_PANEL_ICON = "mdi:speedometer"
+
+
+async def _async_register_frontend(hass: HomeAssistant) -> None:
+    """Register sidebar panel and static assets for the integration dashboard."""
+    if hass.data.get(f"{DOMAIN}_frontend_registered"):
+        return
+
+    module_url = f"/{DOMAIN}_local/{_PANEL_FILENAME}?v={_PANEL_VERSION}"
+
+    try:
+        await hass.http.async_register_static_paths(
+            [
+                StaticPathConfig(
+                    url_path=f"/{DOMAIN}_local",
+                    path=str(_WWW_DIR),
+                    cache_headers=False,
+                )
+            ]
+        )
+    except (ValueError, RuntimeError) as err:
+        _LOGGER.debug(
+            "Network Quality static frontend path registration failed or already exists: %s",
+            err,
+        )
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.exception(
+            "Unexpected error during Network Quality static path registration: %s",
+            err,
+        )
+
+    try:
+        from homeassistant.components.panel_custom import async_register_panel  # noqa: PLC0415
+    except ImportError as err:
+        _LOGGER.warning("panel_custom is unavailable, sidebar panel not registered: %s", err)
+    else:
+        try:
+            await async_register_panel(
+                hass,
+                frontend_url_path=_PANEL_URL_PATH,
+                webcomponent_name=_PANEL_ELEMENT_NAME,
+                sidebar_title="Network Quality",
+                sidebar_icon=_PANEL_ICON,
+                module_url=module_url,
+                embed_iframe=False,
+                trust_external=False,
+                require_admin=False,
+            )
+        except (ValueError, RuntimeError) as err:
+            _LOGGER.debug(
+                "Network Quality sidebar panel registration failed or already exists: %s",
+                err,
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.exception(
+                "Unexpected error during Network Quality sidebar panel registration: %s",
+                err,
+            )
+
+    hass.data[f"{DOMAIN}_frontend_registered"] = True
 
 
 async def _async_emit_dashboard_template(hass: HomeAssistant) -> None:
@@ -124,6 +190,7 @@ async def _async_install_and_emit_dashboard(
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up integration."""
     hass.data.setdefault(DOMAIN, {})
+    await _async_register_frontend(hass)
 
     async def _async_export_report(call: ServiceCall) -> None:
         include_raw = call.data.get(ATTR_INCLUDE_RAW, False)
