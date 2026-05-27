@@ -352,7 +352,7 @@ class NetworkQualityPanel extends HTMLElement {
 
   _isFilterInteractionActive() {
     const activeElement = this.shadowRoot?.activeElement;
-    return Boolean(activeElement?.matches?.("input[data-filter], select[data-filter], #refresh-analytics"));
+    return Boolean(activeElement?.matches?.("input[data-filter], select[data-filter]"));
   }
 
   _onFilterInput(event) {
