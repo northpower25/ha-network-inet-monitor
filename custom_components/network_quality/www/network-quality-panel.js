@@ -5,13 +5,21 @@ class NetworkQualityPanel extends HTMLElement {
     this._redirectToDashboard();
   }
 
+  set hass(_) {
+    this._redirectToDashboard();
+  }
+
   _redirectToDashboard() {
-    if (window.location.pathname === NETWORK_QUALITY_DASHBOARD_URL) {
+    const dashboardPath = new URL(
+      NETWORK_QUALITY_DASHBOARD_URL,
+      window.location.origin,
+    ).pathname;
+
+    if (window.location.pathname === dashboardPath) {
       return;
     }
 
-    window.history.replaceState(window.history.state, "", NETWORK_QUALITY_DASHBOARD_URL);
-    window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: true } }));
+    window.location.replace(NETWORK_QUALITY_DASHBOARD_URL);
   }
 }
 
