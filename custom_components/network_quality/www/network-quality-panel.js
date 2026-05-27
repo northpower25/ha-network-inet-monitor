@@ -246,11 +246,16 @@ function escapeHtml(value) {
 }
 
 function formatNumber(value) {
-  const numeric = Number(value);
-  if (value === null || value === undefined || Number.isNaN(numeric)) {
+  if (value === null || value === undefined) {
     return "N/A";
   }
-  return Math.abs(numeric) >= 100 ? numeric.toFixed(0) : numeric.toFixed(2).replace(/\.00$/, "");
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) {
+    return "N/A";
+  }
+  return (numeric >= 100 || numeric <= -100)
+    ? numeric.toFixed(0)
+    : numeric.toFixed(2).replace(/\.00$/, "");
 }
 
 function formatValue(metric, value) {
@@ -460,9 +465,10 @@ class NetworkQualityPanel extends HTMLElement {
     const series = points.map(toPoint).join(" ");
     const baselineSeries = baselinePoints.map(toPoint).join(" ");
     const markers = buckets.map((bucket, index) => {
-      if (!bucket.anomaly?.drastic_drop && !bucket.anomaly?.outage) return "";
+      const anomaly = bucket.anomaly;
+      if (!anomaly || (!anomaly.drastic_drop && !anomaly.outage)) return "";
       const [x, y] = toPoint(points[index], index).split(",");
-      const color = bucket.anomaly?.outage ? "#c62828" : "#ef6c00";
+      const color = anomaly.outage ? "#c62828" : "#ef6c00";
       return `<circle cx="${x}" cy="${y}" r="4" fill="${color}"></circle>`;
     }).join("");
 

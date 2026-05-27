@@ -261,7 +261,7 @@ def _baseline_for_timestamp(
         entry for entry in candidate_entries if _slot_key(entry["timestamp"], interval) == _slot_key(timestamp, interval)
     ]
     if len(matching_entries) < BASELINE_MINIMUM_SAMPLES:
-        matching_entries = candidate_entries[-max(BASELINE_MINIMUM_SAMPLES, BASELINE_FALLBACK_SAMPLES) :]
+        matching_entries = candidate_entries[-BASELINE_FALLBACK_SAMPLES:]
 
     return _mean_metrics(matching_entries)
 
@@ -475,8 +475,11 @@ def _next_bucket(timestamp: datetime, interval: str) -> datetime:
         month = 1 if timestamp.month == 12 else timestamp.month + 1
         return datetime(year, month, 1, tzinfo=UTC)
     quarter_start_month = timestamp.month
-    year = timestamp.year + (1 if quarter_start_month >= 10 else 0)
-    month = ((quarter_start_month - 1 + 3) % 12) + 1
+    month = quarter_start_month + 3
+    year = timestamp.year
+    if month > 12:
+        month -= 12
+        year += 1
     return datetime(year, month, 1, tzinfo=UTC)
 
 
