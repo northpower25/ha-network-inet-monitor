@@ -33,6 +33,8 @@ const TABS = [
 ];
 
 const DEFAULT_INTERVAL = "day";
+const FILTER_INPUT_SELECTOR = "input[data-filter], select[data-filter]";
+const FILTER_INTERACTION_LOCK_MS = 2000;
 const CHART_WIDTH = 320;
 const CHART_HEIGHT = 180;
 const CHART_TOP_PADDING = 8;
@@ -306,6 +308,7 @@ class NetworkQualityPanel extends HTMLElement {
       interval: this._filters.interval,
       entry_id: this._filters.entry_id,
     };
+    this._filterInteractionLockUntil = 0;
     this._lastFetchKey = "";
   }
 
@@ -350,9 +353,16 @@ class NetworkQualityPanel extends HTMLElement {
     };
   }
 
+  _markFilterInteraction(duration = FILTER_INTERACTION_LOCK_MS) {
+    this._filterInteractionLockUntil = Date.now() + duration;
+  }
+
   _isFilterInteractionActive() {
     const activeElement = this.shadowRoot?.activeElement;
-    return Boolean(activeElement?.matches?.("input[data-filter], select[data-filter]"));
+    return Boolean(
+      activeElement?.matches?.(FILTER_INPUT_SELECTOR)
+      || Date.now() < this._filterInteractionLockUntil
+    );
   }
 
   _onFilterInput(event) {
@@ -361,6 +371,7 @@ class NetworkQualityPanel extends HTMLElement {
     if (!field) {
       return;
     }
+    this._markFilterInteraction();
     this._draftFilters[field] = target.value;
   }
 
@@ -412,9 +423,14 @@ class NetworkQualityPanel extends HTMLElement {
       button.addEventListener("click", (event) => this._onTabClick(event));
     });
     this.shadowRoot.querySelectorAll("input[data-filter]").forEach((field) => {
+      field.addEventListener("focus", () => this._markFilterInteraction());
+      field.addEventListener("pointerdown", () => this._markFilterInteraction());
+      field.addEventListener("click", () => this._markFilterInteraction());
       field.addEventListener("input", (event) => this._onFilterInput(event));
     });
     this.shadowRoot.querySelectorAll("select[data-filter]").forEach((field) => {
+      field.addEventListener("focus", () => this._markFilterInteraction());
+      field.addEventListener("pointerdown", () => this._markFilterInteraction());
       field.addEventListener("change", (event) => this._onFilterInput(event));
     });
     this.shadowRoot.getElementById("refresh-analytics")?.addEventListener("click", () => this._onRefreshClick());
