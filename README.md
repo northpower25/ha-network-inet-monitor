@@ -47,6 +47,7 @@ custom_components/network_quality/
   ├── services.yaml
   ├── strings.json
   ├── dashboard/network_quality_dashboard.json
+  ├── www/network-quality-panel.js
   └── translations/
       ├── de.json
       └── en.json
