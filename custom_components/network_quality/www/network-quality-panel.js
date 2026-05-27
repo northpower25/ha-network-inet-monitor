@@ -59,6 +59,15 @@ const STYLE = `
   .entity-value.unavailable { color: var(--secondary-text-color, #888); font-style: italic; }
 `;
 
+function _escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 class NetworkQualityPanel extends HTMLElement {
   constructor() {
     super();
@@ -97,10 +106,10 @@ class NetworkQualityPanel extends HTMLElement {
 
   _render() {
     const rows = ENTITIES.map(({ id, label }) => {
-      const val = this._stateDisplay(id);
-      const cls = this._valueClass(id);
+      const val = _escapeHtml(this._stateDisplay(id));
+      const cls = _escapeHtml(this._valueClass(id));
       return `<div class="entity-row">
-        <span class="entity-label">${label}</span>
+        <span class="entity-label">${_escapeHtml(label)}</span>
         <span class="entity-value ${cls}">${val}</span>
       </div>`;
     }).join("");
