@@ -8,6 +8,11 @@ const KPI_ENTITIES = [
   { id: "sensor.network_quality_quality_score", label: "Quality Score" },
   { id: "sensor.network_quality_quality_class", label: "Quality Class" },
   { id: "binary_sensor.network_quality_internet_online", label: "Internet Online" },
+  { id: "number.network_quality_ping_test_frequency", label: "Ping Test Frequency" },
+  { id: "number.network_quality_traceroute_test_frequency", label: "Traceroute Test Frequency" },
+  { id: "number.network_quality_download_test_frequency", label: "Download Test Frequency" },
+  { id: "number.network_quality_upload_test_frequency", label: "Upload Test Frequency" },
+  { id: "number.network_quality_status_test_frequency", label: "Status Test Frequency" },
 ];
 
 const METRIC_META = {
@@ -450,6 +455,7 @@ class NetworkQualityPanel extends HTMLElement {
         <h2 class="section-title">ML Summary</h2>
         <div class="summary-row"><span>Detected outages</span><strong>${escapeHtml(formatNumber(summary.outages || 0))}</strong></div>
         <div class="summary-row"><span>Drastic quality drops</span><strong>${escapeHtml(formatNumber(summary.drastic_quality_drops || 0))}</strong></div>
+        <div class="summary-row"><span>Windows with speed test activity</span><strong>${escapeHtml(formatNumber(summary.test_event_windows || 0))}</strong></div>
         <div class="summary-row"><span>Samples in selected range</span><strong>${escapeHtml(formatNumber(summary.samples || 0))}</strong></div>
         <div class="muted" style="margin-top: 12px;">Recurring patterns</div>
         ${patterns.length
@@ -495,6 +501,11 @@ class NetworkQualityPanel extends HTMLElement {
       const color = anomaly.outage ? "#c62828" : "#ef6c00";
       return `<circle cx="${x}" cy="${y}" r="4" fill="${color}"></circle>`;
     }).join("");
+    const testMarkers = buckets.map((bucket, index) => {
+      if (!(bucket.test_events || []).length) return "";
+      const [x, y] = toPoint(points[index], index).split(",");
+      return `<circle cx="${x}" cy="${y}" r="3" fill="#5e35b1"></circle>`;
+    }).join("");
 
     return `
       <div class="chart-card">
@@ -504,11 +515,13 @@ class NetworkQualityPanel extends HTMLElement {
           <polyline fill="none" stroke="rgba(3,169,244,.35)" stroke-width="2" stroke-dasharray="5 4" points="${baselineSeries}"></polyline>
           <polyline fill="none" stroke="var(--accent-color)" stroke-width="3" points="${series}"></polyline>
           ${markers}
+          ${testMarkers}
         </svg>
         <div class="chart-legend">
           <span><span class="legend-dot" style="background: var(--accent-color);"></span>Measured</span>
           <span><span class="legend-dot" style="background: rgba(3,169,244,.35);"></span>ML baseline</span>
           <span><span class="legend-dot" style="background: #ef6c00;"></span>Anomaly marker</span>
+          <span><span class="legend-dot" style="background: #5e35b1;"></span>Test activity</span>
         </div>
       </div>
     `;

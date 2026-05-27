@@ -33,7 +33,7 @@ from .const import (
 )
 from .coordinator import NetworkQualityCoordinator
 
-PLATFORMS: list[str] = ["sensor", "binary_sensor"]
+PLATFORMS: list[str] = ["sensor", "binary_sensor", "number"]
 _LOGGER = logging.getLogger(__name__)
 _DASHBOARD_TEMPLATE_PATH = Path(__file__).parent / "dashboard" / "network_quality_dashboard.json"
 _WWW_DIR = Path(__file__).parent / "www"

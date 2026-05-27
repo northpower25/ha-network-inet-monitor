@@ -18,6 +18,9 @@
           "region": "Region/Standort (Ort, PLZ, Land)",
           "speedtest_interval": "Speedtest-Intervall (Sekunden)",
           "ping_interval": "Ping-Intervall (Sekunden)",
+          "traceroute_interval": "Traceroute-Intervall (Sekunden)",
+          "download_test_interval": "Download-Testintervall (Sekunden)",
+          "upload_test_interval": "Upload-Testintervall (Sekunden)",
           "status_interval": "Status-Intervall (Sekunden)",
           "external_opt_in": "Externe Statusprüfungen aktivieren",
           "test_targets": "Testziele (eine Zeile pro Ziel, IP/FQDN/URL)",
@@ -64,6 +67,9 @@
           "upload_max": "Maximaler Uploadwert deines Tarifs. Quelle: ISP-Tarifdaten.",
           "speedtest_interval": "Wie oft Speedtests ausgewertet werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "ping_interval": "Wie oft Ping-Messungen ausgewertet werden. Quelle: von dir gesetztes Intervall (Sekunden).",
+          "traceroute_interval": "Wie oft Traceroute-Tests ausgewertet werden. Quelle: von dir gesetztes Intervall (Sekunden).",
+          "download_test_interval": "Wie oft Download-Tests ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
+          "upload_test_interval": "Wie oft Upload-Tests ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "status_interval": "Wie oft Status-Checks ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "external_opt_in": "Aktiviert externe Dienstprüfungen. Quelle: deine Einwilligung im Configflow.",
           "test_targets": "Ziele für Erreichbarkeitstests (eine Zeile je Ziel). Quelle: Benutzereingabe; ohne Eingabe werden Integration-Defaults genutzt.",
@@ -124,6 +130,9 @@
           "region": "Region",
           "speedtest_interval": "Speedtest-Intervall (Sekunden)",
           "ping_interval": "Ping-Intervall (Sekunden)",
+          "traceroute_interval": "Traceroute-Intervall (Sekunden)",
+          "download_test_interval": "Download-Testintervall (Sekunden)",
+          "upload_test_interval": "Upload-Testintervall (Sekunden)",
           "status_interval": "Status-Intervall (Sekunden)",
           "external_opt_in": "Externe Statusprüfungen aktivieren",
           "test_targets": "Testziele (eine Zeile pro Ziel, IP/FQDN/URL)",
@@ -170,6 +179,9 @@
           "upload_max": "Maximaler Uploadwert deines Tarifs. Quelle: ISP-Tarifdaten.",
           "speedtest_interval": "Wie oft Speedtests ausgewertet werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "ping_interval": "Wie oft Ping-Messungen ausgewertet werden. Quelle: von dir gesetztes Intervall (Sekunden).",
+          "traceroute_interval": "Wie oft Traceroute-Tests ausgewertet werden. Quelle: von dir gesetztes Intervall (Sekunden).",
+          "download_test_interval": "Wie oft Download-Tests ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
+          "upload_test_interval": "Wie oft Upload-Tests ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "status_interval": "Wie oft Status-Checks ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "external_opt_in": "Aktiviert externe Dienstprüfungen. Quelle: deine Einwilligung im Configflow.",
           "test_targets": "Ziele für Erreichbarkeitstests (eine Zeile je Ziel). Quelle: Benutzereingabe; ohne Eingabe werden Integration-Defaults genutzt.",
@@ -242,6 +254,23 @@
       },
       "service_status": {
         "name": "Dienststatus"
+      }
+    },
+    "number": {
+      "ping_test_frequency": {
+        "name": "Ping-Testfrequenz"
+      },
+      "traceroute_test_frequency": {
+        "name": "Traceroute-Testfrequenz"
+      },
+      "download_test_frequency": {
+        "name": "Download-Testfrequenz"
+      },
+      "upload_test_frequency": {
+        "name": "Upload-Testfrequenz"
+      },
+      "status_test_frequency": {
+        "name": "Status-Testfrequenz"
       }
     }
   }

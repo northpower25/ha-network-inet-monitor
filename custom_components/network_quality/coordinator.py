@@ -18,11 +18,13 @@ from .analytics import (
     build_dashboard_payload,
     compute_analysis_overview,
     normalize_stored_sample,
+    parse_iso_datetime,
     serialize_stored_sample,
     trim_history,
 )
 from .const import (
     CONF_AGENT_URL,
+    CONF_DOWNLOAD_TEST_INTERVAL,
     CONF_DOWNLOAD_NORMAL,
     CONF_EXTERNAL_OPT_IN,
     CONF_PING_INTERVAL,
@@ -30,11 +32,14 @@ from .const import (
     CONF_SPEEDTEST_INTERVAL,
     CONF_STATUS_INTERVAL,
     CONF_TEST_TARGETS,
+    CONF_TRACEROUTE_INTERVAL,
+    CONF_UPLOAD_TEST_INTERVAL,
     CONF_UPLOAD_NORMAL,
     DEFAULT_PING_INTERVAL,
     DEFAULT_SPEEDTEST_INTERVAL,
     DEFAULT_STATUS_INTERVAL,
     DEFAULT_TEST_TARGETS,
+    DEFAULT_TRACEROUTE_INTERVAL,
     DOMAIN,
     MIN_UPDATE_INTERVAL_SECONDS,
     UPDATE_TIMEOUT_SECONDS,
@@ -90,9 +95,15 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._history: list[dict[str, Any]] = []
         self._store = Store[dict[str, Any]](hass, STORE_VERSION, f"{DOMAIN}_{entry.entry_id}_history")
 
+        speedtest_interval = int(entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL))
+        download_interval = int(entry.options.get(CONF_DOWNLOAD_TEST_INTERVAL, speedtest_interval))
+        upload_interval = int(entry.options.get(CONF_UPLOAD_TEST_INTERVAL, speedtest_interval))
         refresh_interval = min(
-            int(entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL)),
+            speedtest_interval,
             int(entry.options.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL)),
+            int(entry.options.get(CONF_TRACEROUTE_INTERVAL, DEFAULT_TRACEROUTE_INTERVAL)),
+            download_interval,
+            upload_interval,
             int(entry.options.get(CONF_STATUS_INTERVAL, DEFAULT_STATUS_INTERVAL)),
         )
         super().__init__(
@@ -131,6 +142,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         packet_loss = 0.0
         availability = 0.0
         online = False
+        tests: dict[str, dict[str, str | None]] = {}
+        active_test_events: list[str] = []
 
         agent_url = options.get(CONF_AGENT_URL)
         services = options.get(CONF_SERVICE_STATUSES, [])
@@ -152,6 +165,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 packet_loss = float(payload.get("packet_loss_percent", 0.0))
                 availability = float(payload.get("availability_percent", 0.0))
                 online = bool(payload.get("online", self._is_online_from_metrics(download, ping)))
+                tests = self._extract_test_runs(payload)
+                active_test_events = self._extract_active_test_events(payload, tests)
             else:
                 online = True
                 download = float(contract.get(CONF_DOWNLOAD_NORMAL, 0.0))
@@ -160,6 +175,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 jitter = 1.0
                 packet_loss = 0.0
                 availability = 100.0
+                tests = self._build_default_test_runs(now)
+                active_test_events = []
         except Exception as err:
             raise UpdateFailed(f"Failed to update from agent endpoint: {err}") from err
 
@@ -182,6 +199,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             online=online,
             services=service_statuses,
             score=score,
+            tests=tests,
+            active_test_events=active_test_events,
         )
         await self._async_persist_sample(stored_sample)
         analysis = compute_analysis_overview(self._history, now=now)
@@ -195,6 +214,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "contract_ratio": stored_sample["contract_ratio"],
             "score": score,
             "quality_class": self._quality_class(score),
+            "tests": tests,
+            "active_test_events": active_test_events,
             "rolling": self._rolling_aggregates(),
             "analysis": analysis,
         }
@@ -214,6 +235,170 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for name in services
             ]
         return [ServiceStatus(name=name, reachable=online, detail="not_configured") for name in services]
+
+    def _build_default_test_runs(self, now: datetime) -> dict[str, dict[str, str | None]]:
+        """Provide fallback test metadata when no agent endpoint is configured."""
+        timestamp = now.isoformat()
+        return {
+            "ping": {"last_run_at": timestamp},
+            "traceroute": {"last_run_at": timestamp},
+            "status": {"last_run_at": timestamp},
+            "download": {
+                "last_run_at": timestamp,
+                "last_started_at": timestamp,
+                "last_finished_at": timestamp,
+            },
+            "upload": {
+                "last_run_at": timestamp,
+                "last_started_at": timestamp,
+                "last_finished_at": timestamp,
+            },
+        }
+
+    def _extract_test_runs(self, payload: dict[str, Any]) -> dict[str, dict[str, str | None]]:
+        """Normalize test run metadata from agent payload."""
+        tests_payload = payload.get("tests", {})
+        runs_payload = payload.get("test_runs", {})
+
+        def _pick(*values: Any) -> str | None:
+            for value in values:
+                normalized = self._normalize_timestamp(value)
+                if normalized:
+                    return normalized
+            return None
+
+        def _source(name: str) -> dict[str, Any]:
+            merged: dict[str, Any] = {}
+            tests_data = tests_payload.get(name, {}) if isinstance(tests_payload, dict) else {}
+            runs_data = runs_payload.get(name, {}) if isinstance(runs_payload, dict) else {}
+            if isinstance(tests_data, dict):
+                merged.update(tests_data)
+            if isinstance(runs_data, dict):
+                merged.update(runs_data)
+            return merged
+
+        ping_data = _source("ping")
+        traceroute_data = _source("traceroute")
+        status_data = _source("status")
+        download_data = _source("download")
+        upload_data = _source("upload")
+
+        return {
+            "ping": {
+                "last_run_at": _pick(
+                    ping_data.get("last_run_at"),
+                    ping_data.get("last_run"),
+                    payload.get("last_ping_test_at"),
+                    payload.get("last_ping_test"),
+                    payload.get("ping_last_run_at"),
+                    payload.get("ping_last_run"),
+                )
+            },
+            "traceroute": {
+                "last_run_at": _pick(
+                    traceroute_data.get("last_run_at"),
+                    traceroute_data.get("last_run"),
+                    payload.get("last_traceroute_test_at"),
+                    payload.get("last_traceroute_test"),
+                    payload.get("traceroute_last_run_at"),
+                    payload.get("traceroute_last_run"),
+                )
+            },
+            "status": {
+                "last_run_at": _pick(
+                    status_data.get("last_run_at"),
+                    status_data.get("last_run"),
+                    payload.get("last_status_test_at"),
+                    payload.get("last_status_test"),
+                    payload.get("status_last_run_at"),
+                    payload.get("status_last_run"),
+                )
+            },
+            "download": {
+                "last_run_at": _pick(
+                    download_data.get("last_run_at"),
+                    download_data.get("last_run"),
+                    payload.get("last_download_test_at"),
+                    payload.get("last_download_test"),
+                    payload.get("download_last_run_at"),
+                    payload.get("download_last_run"),
+                ),
+                "last_started_at": _pick(
+                    download_data.get("last_started_at"),
+                    download_data.get("started_at"),
+                    payload.get("download_test_started_at"),
+                    payload.get("last_download_test_started_at"),
+                ),
+                "last_finished_at": _pick(
+                    download_data.get("last_finished_at"),
+                    download_data.get("finished_at"),
+                    payload.get("download_test_finished_at"),
+                    payload.get("last_download_test_finished_at"),
+                ),
+            },
+            "upload": {
+                "last_run_at": _pick(
+                    upload_data.get("last_run_at"),
+                    upload_data.get("last_run"),
+                    payload.get("last_upload_test_at"),
+                    payload.get("last_upload_test"),
+                    payload.get("upload_last_run_at"),
+                    payload.get("upload_last_run"),
+                ),
+                "last_started_at": _pick(
+                    upload_data.get("last_started_at"),
+                    upload_data.get("started_at"),
+                    payload.get("upload_test_started_at"),
+                    payload.get("last_upload_test_started_at"),
+                ),
+                "last_finished_at": _pick(
+                    upload_data.get("last_finished_at"),
+                    upload_data.get("finished_at"),
+                    payload.get("upload_test_finished_at"),
+                    payload.get("last_upload_test_finished_at"),
+                ),
+            },
+        }
+
+    def _extract_active_test_events(
+        self,
+        payload: dict[str, Any],
+        tests: dict[str, dict[str, str | None]],
+    ) -> list[str]:
+        """Extract active tests so analytics can mark them separately."""
+        active_events: set[str] = set()
+        active_tests = payload.get("active_tests", [])
+        if isinstance(active_tests, list):
+            for item in active_tests:
+                name = str(item).strip().lower()
+                if name:
+                    active_events.add(f"{name.removesuffix('_test')}_test")
+
+        if payload.get("download_test_running"):
+            active_events.add("download_test")
+        if payload.get("upload_test_running"):
+            active_events.add("upload_test")
+
+        for metric in ("download", "upload"):
+            details = tests.get(metric, {})
+            started = parse_iso_datetime(details.get("last_started_at"))
+            finished = parse_iso_datetime(details.get("last_finished_at"))
+            if started is None:
+                continue
+            if finished is None or finished < started:
+                active_events.add(f"{metric}_test")
+
+        return sorted(active_events)
+
+    def _normalize_timestamp(self, value: Any) -> str | None:
+        parsed = None
+        if isinstance(value, datetime):
+            parsed = value if value.tzinfo else value.replace(tzinfo=UTC)
+        elif isinstance(value, str):
+            parsed = parse_iso_datetime(value)
+        if parsed is None:
+            return None
+        return parsed.astimezone(UTC).isoformat()
 
     def _rolling_aggregates(self) -> dict[str, float]:
         if not self._samples:
@@ -282,6 +467,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         online: bool,
         services: list[ServiceStatus],
         score: float,
+        tests: dict[str, dict[str, str | None]],
+        active_test_events: list[str],
     ) -> dict[str, Any]:
         return {
             "timestamp": timestamp,
@@ -291,6 +478,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "contract_ratio": self._contract_ratio_percent(sample),
             "score": score,
             "quality_class": self._quality_class(score),
+            "tests": tests,
+            "active_test_events": active_test_events,
         }
 
     async def _async_persist_sample(self, sample: dict[str, Any]) -> None:
