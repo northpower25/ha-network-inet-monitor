@@ -425,7 +425,6 @@ class NetworkQualityPanel extends HTMLElement {
     this.shadowRoot.querySelectorAll("input[data-filter]").forEach((field) => {
       field.addEventListener("focus", () => this._markFilterInteraction());
       field.addEventListener("pointerdown", () => this._markFilterInteraction());
-      field.addEventListener("click", () => this._markFilterInteraction());
       field.addEventListener("input", (event) => this._onFilterInput(event));
     });
     this.shadowRoot.querySelectorAll("select[data-filter]").forEach((field) => {
