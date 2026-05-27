@@ -18,6 +18,9 @@
           "region": "Region/location (city, postal code, country)",
           "speedtest_interval": "Speedtest interval (seconds)",
           "ping_interval": "Ping interval (seconds)",
+          "traceroute_interval": "Traceroute interval (seconds)",
+          "download_test_interval": "Download test interval (seconds)",
+          "upload_test_interval": "Upload test interval (seconds)",
           "status_interval": "Status interval (seconds)",
           "external_opt_in": "Enable external status checks",
           "test_targets": "Test targets (one per line, IP/FQDN/URL)",
@@ -64,6 +67,9 @@
           "upload_max": "Maximum upload value of your tariff. Source: ISP tariff data.",
           "speedtest_interval": "How often speedtest results are processed. Source: interval set by you (seconds).",
           "ping_interval": "How often ping results are processed. Source: interval set by you (seconds).",
+          "traceroute_interval": "How often traceroute results are processed. Source: interval set by you (seconds).",
+          "download_test_interval": "How often download tests are processed. Source: interval set by you (seconds).",
+          "upload_test_interval": "How often upload tests are processed. Source: interval set by you (seconds).",
           "status_interval": "How often status checks run. Source: interval set by you (seconds).",
           "external_opt_in": "Enables external service checks. Source: your consent in the config flow.",
           "test_targets": "Targets for reachability tests (one per line). Source: user input; integration defaults are used when empty.",
@@ -124,6 +130,9 @@
           "region": "Region",
           "speedtest_interval": "Speedtest interval (seconds)",
           "ping_interval": "Ping interval (seconds)",
+          "traceroute_interval": "Traceroute interval (seconds)",
+          "download_test_interval": "Download test interval (seconds)",
+          "upload_test_interval": "Upload test interval (seconds)",
           "status_interval": "Status interval (seconds)",
           "external_opt_in": "Enable external status checks",
           "test_targets": "Test targets (one per line, IP/FQDN/URL)",
@@ -170,6 +179,9 @@
           "upload_max": "Maximum upload value of your tariff. Source: ISP tariff data.",
           "speedtest_interval": "How often speedtest results are processed. Source: interval set by you (seconds).",
           "ping_interval": "How often ping results are processed. Source: interval set by you (seconds).",
+          "traceroute_interval": "How often traceroute results are processed. Source: interval set by you (seconds).",
+          "download_test_interval": "How often download tests are processed. Source: interval set by you (seconds).",
+          "upload_test_interval": "How often upload tests are processed. Source: interval set by you (seconds).",
           "status_interval": "How often status checks run. Source: interval set by you (seconds).",
           "external_opt_in": "Enables external service checks. Source: your consent in the config flow.",
           "test_targets": "Targets for reachability tests (one per line). Source: user input; integration defaults are used when empty.",
@@ -242,6 +254,23 @@
       },
       "service_status": {
         "name": "Service status"
+      }
+    },
+    "number": {
+      "ping_test_frequency": {
+        "name": "Ping test frequency"
+      },
+      "traceroute_test_frequency": {
+        "name": "Traceroute test frequency"
+      },
+      "download_test_frequency": {
+        "name": "Download test frequency"
+      },
+      "upload_test_frequency": {
+        "name": "Upload test frequency"
+      },
+      "status_test_frequency": {
+        "name": "Status test frequency"
       }
     }
   }

@@ -78,6 +78,8 @@ def normalize_stored_sample(entry: dict[str, Any]) -> StoredSample | None:
         "online": bool(entry.get("online", False)),
         "services": normalized_services,
         "quality_class": str(entry.get("quality_class", "E")),
+        "active_test_events": _normalize_active_test_events(entry.get("active_test_events")),
+        "tests": _normalize_tests(entry.get("tests")),
     }
     for metric in ("contract_ratio", "score"):
         if metric in entry:
@@ -95,6 +97,8 @@ def serialize_stored_sample(entry: StoredSample) -> dict[str, Any]:
         "contract_ratio": entry.get("contract_ratio"),
         "score": entry.get("score"),
         "quality_class": entry.get("quality_class", "E"),
+        "active_test_events": list(entry.get("active_test_events", [])),
+        "tests": dict(entry.get("tests", {})),
     }
 
 
@@ -190,6 +194,7 @@ def build_dashboard_payload(
     summary = {
         "outages": sum(1 for bucket in buckets if bucket["anomaly"]["outage"]),
         "drastic_quality_drops": sum(1 for bucket in buckets if bucket["anomaly"]["drastic_drop"]),
+        "test_event_windows": sum(1 for bucket in buckets if bucket.get("test_events")),
         "recurring_patterns": _regularity_patterns(history, normalized_interval, end),
         "samples": len(relevant),
     }
@@ -227,10 +232,19 @@ def _build_buckets(
     buckets: list[dict[str, Any]] = []
     for bucket_start in sorted(grouped):
         entries = grouped[bucket_start]
-        metrics = _mean_metrics(entries)
+        metrics_entries = [entry for entry in entries if not _has_speedtest_event(entry)] or entries
+        metrics = _mean_metrics(metrics_entries)
         bucket_end = _next_bucket(bucket_start, interval)
         baseline = _baseline_for_timestamp(baseline_source, bucket_start, interval)
-        anomaly = _bucket_anomaly(entries, metrics, baseline)
+        anomaly = _bucket_anomaly(metrics_entries, metrics, baseline)
+        test_events = sorted(
+            {
+                str(event)
+                for entry in entries
+                for event in entry.get("active_test_events", [])
+                if str(event).strip()
+            }
+        )
         buckets.append(
             {
                 "start": bucket_start.isoformat(),
@@ -245,6 +259,7 @@ def _build_buckets(
                 ),
                 "quality_class": _quality_class_from_score(metrics.get("score")),
                 "anomaly": anomaly,
+                "test_events": test_events,
             }
         )
     return buckets
@@ -253,7 +268,11 @@ def _build_buckets(
 def _baseline_for_timestamp(
     history: list[StoredSample], timestamp: datetime, interval: str
 ) -> dict[str, float | None]:
-    candidate_entries = [entry for entry in history if entry["timestamp"] < timestamp]
+    candidate_entries = [
+        entry for entry in history if entry["timestamp"] < timestamp and not _has_speedtest_event(entry)
+    ]
+    if not candidate_entries:
+        candidate_entries = [entry for entry in history if entry["timestamp"] < timestamp]
     if not candidate_entries:
         return {metric: None for metric in METRICS}
 
@@ -508,6 +527,40 @@ def _quality_class_from_score(score: float | None) -> str | None:
     if score >= 40:
         return "D"
     return "E"
+
+
+def _normalize_active_test_events(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[str] = []
+    for item in value:
+        event = str(item).strip()
+        if event:
+            normalized.append(event)
+    return normalized
+
+
+def _normalize_tests(value: Any) -> dict[str, dict[str, str | None]]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, dict[str, str | None]] = {}
+    for test_name, details in value.items():
+        name = str(test_name).strip().lower()
+        if not name or not isinstance(details, dict):
+            continue
+        parsed_details: dict[str, str | None] = {}
+        for key in ("last_run_at", "last_started_at", "last_finished_at"):
+            parsed = parse_iso_datetime(details.get(key))
+            parsed_details[key] = parsed.isoformat() if parsed else None
+        normalized[name] = parsed_details
+    return normalized
+
+
+def _has_speedtest_event(entry: StoredSample) -> bool:
+    events = entry.get("active_test_events", [])
+    if not isinstance(events, list):
+        return False
+    return any(event in {"download_test", "upload_test"} for event in events)
 
 
 def _safe_float(value: Any) -> float:
