@@ -23,9 +23,12 @@ Diese Repository-Version enthält ein MVP der HACS-fähigen Home-Assistant-Custo
   - Verfügbarkeit
   - Vertragsquote
   - Quality Score (0–100) + Qualitätsklasse A–E
+- Persistenter Messhistorie mit ML-ähnlichen Baselines über Stunde/Tag/Woche/Monat/Quartal
+- Erkennung von Ausfällen, starken Qualitätseinbrüchen und wiederkehrenden Auffälligkeiten
 - Sensoren und Binary Sensoren für Kernmetriken und Dienststatus
 - Erweiterter Dienstkatalog inkl. Social Media und Mail/Webmail-Anbietern
 - Diagnostik mit Redaction sensibler Felder
+- Eigenes Analytics-Panel mit Datumsfilter, Periodenauswahl, Trenddiagrammen und separatem Dienste-Reiter
 - Services:
   - `network_quality.export_report`
   - `network_quality.install_dashboard`
@@ -57,3 +60,13 @@ custom_components/network_quality/
 
 Das MVP unterstützt optional einen lokalen Agent-Endpunkt via `agent_url`.
 Wenn kein Agent konfiguriert ist, werden sichere lokale Defaultwerte zur Funktionsprüfung genutzt.
+
+## Analytics-Dashboard
+
+- Sidebar-Panel **Network Quality** mit:
+  - Zeitraumfilter (`von` / `bis`)
+  - Periodenaggregation (Stunde, Tag, Woche, Monat, Quartal)
+  - ML-Baseline-Vergleich für aktuelle Werte und Verlauf
+  - Erkennung von Ausfällen und drastischen Qualitätsabfällen
+  - separatem Reiter für überwachte Dienste
+- Lovelace-Dashboard-Template mit zusätzlicher Service-Ansicht und erweiterten Verlaufsgrafiken

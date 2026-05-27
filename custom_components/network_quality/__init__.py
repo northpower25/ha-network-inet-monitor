@@ -6,9 +6,11 @@ import json
 import logging
 from pathlib import Path
 import re
+from datetime import UTC, date, datetime, time, timedelta
 
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.lovelace.const import LOVELACE_DATA
+from homeassistant.components import websocket_api
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -48,7 +50,7 @@ _SUPPORTED_SENSOR_KEYS = {
     "quality_class",
 }
 _SUPPORTED_BINARY_KEYS = {"internet_online"}
-_PANEL_VERSION = "4"
+_PANEL_VERSION = "5"
 _PANEL_FILENAME = "network-quality-panel.js"
 _PANEL_URL_PATH = "network-quality-overview"
 _PANEL_ELEMENT_NAME = "network-quality-panel"
@@ -112,6 +114,80 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
             )
 
     hass.data[f"{DOMAIN}_frontend_registered"] = True
+
+
+def _get_coordinator(
+    hass: HomeAssistant,
+    *,
+    entry_id: str | None = None,
+) -> NetworkQualityCoordinator | None:
+    """Resolve a coordinator by entry id or default to the first configured instance."""
+    domain_data = hass.data.get(DOMAIN, {})
+    if entry_id:
+        entry_data = domain_data.get(entry_id)
+        if entry_data:
+            return entry_data.get(DATA_COORDINATOR)
+        return None
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return None
+    first = domain_data.get(entries[0].entry_id)
+    if not first:
+        return None
+    return first.get(DATA_COORDINATOR)
+
+
+def _parse_dashboard_date(value: str | None, *, end_of_day: bool = False) -> datetime | None:
+    """Parse dashboard date filters."""
+    if not value:
+        return None
+    try:
+        parsed_date = date.fromisoformat(value)
+    except ValueError as err:
+        raise ValueError("Invalid date format: expected YYYY-MM-DD") from err
+    # `time.max` keeps the selected end date inclusive for dashboard range filters.
+    return datetime.combine(
+        parsed_date,
+        time.max if end_of_day else time.min,
+        tzinfo=UTC,
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/dashboard_data",
+        vol.Optional("entry_id"): str,
+        vol.Optional("start"): str,
+        vol.Optional("end"): str,
+        vol.Optional("interval", default="day"): vol.In(
+            ["hour", "day", "week", "month", "quarter"]
+        ),
+    }
+)
+@websocket_api.async_response
+async def websocket_dashboard_data(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, str],
+) -> None:
+    """Return aggregated dashboard analytics."""
+    coordinator = _get_coordinator(hass, entry_id=msg.get("entry_id"))
+    if coordinator is None:
+        connection.send_error(msg["id"], "not_found", "Network Quality coordinator not found")
+        return
+
+    try:
+        payload = coordinator.build_dashboard_payload(
+            start=_parse_dashboard_date(msg.get("start")),
+            end=_parse_dashboard_date(msg.get("end"), end_of_day=True),
+            interval=msg.get("interval", "day"),
+        )
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid_date", str(err))
+        return
+
+    connection.send_result(msg["id"], payload)
 
 
 async def _async_emit_dashboard_template(hass: HomeAssistant) -> None:
@@ -191,24 +267,19 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up integration."""
     hass.data.setdefault(DOMAIN, {})
     await _async_register_frontend(hass)
+    if not hass.data.get(f"{DOMAIN}_websocket_registered"):
+        websocket_api.async_register_command(hass, websocket_dashboard_data)
+        hass.data[f"{DOMAIN}_websocket_registered"] = True
 
     async def _async_export_report(call: ServiceCall) -> None:
         include_raw = call.data.get(ATTR_INCLUDE_RAW, False)
         output_path = call.data.get(ATTR_OUTPUT_PATH)
         target_entry_id = call.data.get(ATTR_INSTANCE_ID) or call.data.get(ATTR_ENTRY_ID)
 
-        entries = hass.config_entries.async_entries(DOMAIN)
-        if not entries:
+        coordinator = _get_coordinator(hass, entry_id=target_entry_id)
+        if coordinator is None:
             _LOGGER.warning("No config entry found for report export")
             return
-
-        entry_id = target_entry_id or entries[0].entry_id
-        entry_data = hass.data[DOMAIN].get(entry_id)
-        if not entry_data:
-            _LOGGER.warning("Config entry id %s not found for report export", entry_id)
-            return
-
-        coordinator: NetworkQualityCoordinator = entry_data[DATA_COORDINATOR]
         report_data = coordinator.build_report_payload(include_raw=include_raw)
 
         if output_path:
@@ -322,6 +393,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     coordinator = NetworkQualityCoordinator(hass, entry)
+    await coordinator.async_initialize()
     await coordinator.async_config_entry_first_refresh()
     await _async_migrate_entities(hass, entry)
 

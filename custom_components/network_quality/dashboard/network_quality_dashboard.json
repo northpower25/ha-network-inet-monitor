@@ -22,11 +22,68 @@
         {
           "type": "history-graph",
           "title": "Bandwidth and latency",
-          "hours_to_show": 24,
+          "hours_to_show": 168,
           "entities": [
             "sensor.network_quality_internet_download",
             "sensor.network_quality_internet_upload",
             "sensor.network_quality_ping_public"
+          ]
+        },
+        {
+          "type": "history-graph",
+          "title": "Quality and availability",
+          "hours_to_show": 168,
+          "entities": [
+            "sensor.network_quality_quality_score",
+            "sensor.network_quality_availability",
+            "sensor.network_quality_packet_loss",
+            "sensor.network_quality_jitter"
+          ]
+        },
+        {
+          "type": "markdown",
+          "title": "Advanced Analytics",
+          "content": "Use the **Network Quality** sidebar panel for ML baselines, custom date ranges, selectable periods, and the monitored-services analysis."
+        }
+      ]
+    },
+    {
+      "title": "Services",
+      "path": "network-quality-services",
+      "cards": [
+        {
+          "type": "entities",
+          "title": "Monitored services",
+          "entities": [
+            "binary_sensor.network_quality_internet_online",
+            "binary_sensor.network_quality_service_amazon",
+            "binary_sensor.network_quality_service_google",
+            "binary_sensor.network_quality_service_microsoft",
+            "binary_sensor.network_quality_service_netflix",
+            "binary_sensor.network_quality_service_spotify",
+            "binary_sensor.network_quality_service_discord",
+            "binary_sensor.network_quality_service_whatsapp",
+            "binary_sensor.network_quality_service_openai",
+            "binary_sensor.network_quality_service_claude",
+            "binary_sensor.network_quality_service_github",
+            "binary_sensor.network_quality_service_youtube",
+            "binary_sensor.network_quality_service_x",
+            "binary_sensor.network_quality_service_facebook",
+            "binary_sensor.network_quality_service_instagram",
+            "binary_sensor.network_quality_service_tiktok",
+            "binary_sensor.network_quality_service_linkedin",
+            "binary_sensor.network_quality_service_reddit",
+            "binary_sensor.network_quality_service_telegram",
+            "binary_sensor.network_quality_service_gmail",
+            "binary_sensor.network_quality_service_outlook_com",
+            "binary_sensor.network_quality_service_yahoo_mail",
+            "binary_sensor.network_quality_service_icloud_mail",
+            "binary_sensor.network_quality_service_proton_mail",
+            "binary_sensor.network_quality_service_strato",
+            "binary_sensor.network_quality_service_one_and_one",
+            "binary_sensor.network_quality_service_freenet",
+            "binary_sensor.network_quality_service_web_de",
+            "binary_sensor.network_quality_service_gmx"
           ]
         }
       ]
