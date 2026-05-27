@@ -122,12 +122,27 @@ class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], SensorE
             return None
 
         if self.entity_description.key in {"internet_download", "internet_upload"}:
-            return self.coordinator.data.get("rolling", {})
+            analysis = self.coordinator.data.get("analysis", {})
+            period = (analysis.get("periods", {}) or {}).get("day", {})
+            return {
+                **self.coordinator.data.get("rolling", {}),
+                "baseline": period.get(
+                    "baseline_download"
+                    if self.entity_description.key == "internet_download"
+                    else "baseline_upload"
+                ),
+                "analysis_available": analysis.get("available", False),
+            }
 
         if self.entity_description.key == "quality_score":
+            analysis = self.coordinator.data.get("analysis", {})
             return {
                 "quality_class": self.coordinator.data.get("quality_class"),
                 "contract_ratio": self.coordinator.data.get("contract_ratio"),
+                "baseline_score": analysis.get("baseline_score"),
+                "score_delta": analysis.get("score_delta"),
+                "anomaly_state": analysis.get("anomaly_state"),
+                "recurring_patterns": analysis.get("recurring_patterns", []),
             }
 
         return None

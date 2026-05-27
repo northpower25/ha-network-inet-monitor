@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 import logging
 from statistics import mean
@@ -11,8 +11,16 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .analytics import (
+    build_dashboard_payload,
+    compute_analysis_overview,
+    normalize_stored_sample,
+    serialize_stored_sample,
+    trim_history,
+)
 from .const import (
     CONF_AGENT_URL,
     CONF_DOWNLOAD_NORMAL,
@@ -52,6 +60,9 @@ WEIGHT_AVAILABILITY = 0.15
 # Keep enough history for trend metrics while limiting memory growth.
 # Effective lookback depends on configured polling intervals.
 MAX_SAMPLE_HISTORY = 500
+MAX_STORED_HISTORY_DAYS = 400
+STORE_VERSION = 1
+STORED_SAMPLE_INTERVAL = timedelta(minutes=15)
 # Project-specific quality grade boundaries for A-E classification.
 QUALITY_CLASS_A_THRESHOLD = 90.0
 QUALITY_CLASS_B_THRESHOLD = 75.0
@@ -75,6 +86,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.entry = entry
         self._session = async_get_clientsession(hass)
         self._samples: list[dict[str, float]] = []
+        self._history: list[dict[str, Any]] = []
+        self._store = Store[dict[str, Any]](hass, STORE_VERSION, f"{DOMAIN}_{entry.entry_id}_history")
 
         refresh_interval = min(
             int(entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL)),
@@ -89,6 +102,20 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 seconds=max(MIN_UPDATE_INTERVAL_SECONDS, refresh_interval)
             ),
         )
+
+    async def async_initialize(self) -> None:
+        """Load persisted history before the first refresh."""
+        stored = await self._store.async_load()
+        raw_history = stored.get("history", []) if isinstance(stored, dict) else []
+        history: list[dict[str, Any]] = []
+        for entry in raw_history:
+            if not isinstance(entry, dict):
+                continue
+            normalized = normalize_stored_sample(entry)
+            if normalized is not None:
+                history.append(normalized)
+        history.sort(key=lambda item: item["timestamp"])
+        self._history = trim_history(history, keep_days=MAX_STORED_HISTORY_DAYS)
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Update and normalize data."""
@@ -147,16 +174,28 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._samples = self._samples[-MAX_SAMPLE_HISTORY:]
 
         score = self._calculate_score(sample)
+        service_statuses = self._build_service_statuses(services, external_opt_in, online)
+        stored_sample = self._build_stored_sample(
+            timestamp=now,
+            sample=sample,
+            online=online,
+            services=service_statuses,
+            score=score,
+        )
+        await self._async_persist_sample(stored_sample)
+        analysis = compute_analysis_overview(self._history, now=now)
+
         return {
             "timestamp": now.isoformat(),
             "sample": sample,
             "online": online,
             "targets": targets,
-            "services": self._build_service_statuses(services, external_opt_in, online),
-            "contract_ratio": self._contract_ratio_percent(sample),
+            "services": service_statuses,
+            "contract_ratio": stored_sample["contract_ratio"],
             "score": score,
             "quality_class": self._quality_class(score),
             "rolling": self._rolling_aggregates(),
+            "analysis": analysis,
         }
 
     def _is_online_from_metrics(self, download_mbps: float, ping_ms: float) -> bool:
@@ -234,6 +273,82 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return "D"
         return "E"
 
+    def _build_stored_sample(
+        self,
+        *,
+        timestamp: datetime,
+        sample: dict[str, float],
+        online: bool,
+        services: list[ServiceStatus],
+        score: float,
+    ) -> dict[str, Any]:
+        return {
+            "timestamp": timestamp,
+            "sample": sample,
+            "online": online,
+            "services": [asdict(service) for service in services],
+            "contract_ratio": self._contract_ratio_percent(sample),
+            "score": score,
+            "quality_class": self._quality_class(score),
+        }
+
+    async def _async_persist_sample(self, sample: dict[str, Any]) -> None:
+        """Persist downsampled history for analytics."""
+        should_store = not self._history
+        if not should_store:
+            last_entry = self._history[-1]
+            elapsed = sample["timestamp"] - last_entry["timestamp"]
+            status_changed = bool(last_entry.get("online")) != bool(sample.get("online"))
+            score_changed = abs(float(last_entry.get("score", 0.0)) - float(sample.get("score", 0.0))) >= 10.0
+            should_store = elapsed >= STORED_SAMPLE_INTERVAL or status_changed or score_changed
+
+        if should_store:
+            self._history.append(sample)
+        else:
+            self._history[-1] = sample
+
+        self._history.sort(key=lambda item: item["timestamp"])
+        self._history = trim_history(self._history, keep_days=MAX_STORED_HISTORY_DAYS)
+        self._store.async_delay_save(
+            lambda: {"history": [serialize_stored_sample(entry) for entry in self._history]},
+            5,
+        )
+
+    def build_dashboard_payload(
+        self,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str = "day",
+    ) -> dict[str, Any]:
+        """Return aggregated analytics payload for the frontend dashboard."""
+        if not self._history:
+            return {
+                "range": {
+                    "start": start.isoformat() if start else None,
+                    "end": end.isoformat() if end else None,
+                    "interval": interval,
+                },
+                "current": self.data or {},
+                "baseline_current": {},
+                "buckets": [],
+                "summary": {"outages": 0, "drastic_quality_drops": 0, "recurring_patterns": []},
+                "services": [],
+                "coverage": {"samples": 0, "range_samples": 0, "first": None, "last": None},
+            }
+
+        resolved_end = end or self._history[-1]["timestamp"]
+        resolved_start = start or max(self._history[0]["timestamp"], resolved_end - timedelta(days=30))
+        payload = build_dashboard_payload(
+            self._history,
+            start=resolved_start,
+            end=resolved_end,
+            interval=interval,
+        )
+        payload["entry_id"] = self.entry.entry_id
+        payload["name"] = self.entry.title
+        return payload
+
     def build_report_payload(self, *, include_raw: bool) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "generated_at": datetime.now(tz=UTC).isoformat(),
@@ -242,14 +357,17 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "latest": self.data or {},
             "samples": len(self._samples),
             "rolling": (self.data or {}).get("rolling", {}),
+            "analytics": self.build_dashboard_payload(interval="day"),
         }
         if include_raw:
             payload["raw_samples"] = self._samples
+            payload["raw_history"] = [serialize_stored_sample(entry) for entry in self._history]
         return payload
 
     def render_report_text(self, payload: dict[str, Any]) -> str:
         latest = payload.get("latest", {})
         sample = latest.get("sample", {})
+        analytics = payload.get("analytics", {}).get("summary", {})
         return "\n".join(
             [
                 "Network Quality Report",
@@ -265,5 +383,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 f"Contract Ratio: {latest.get('contract_ratio', 0.0)} %",
                 f"Score: {latest.get('score', 0.0)}",
                 f"Quality Class: {latest.get('quality_class', 'E')}",
+                f"Detected Outages (range): {analytics.get('outages', 0)}",
+                f"Drastic Quality Drops (range): {analytics.get('drastic_quality_drops', 0)}",
             ]
         )
