@@ -232,7 +232,10 @@ def _build_buckets(
     buckets: list[dict[str, Any]] = []
     for bucket_start in sorted(grouped):
         entries = grouped[bucket_start]
-        metrics_entries = [entry for entry in entries if not _has_speedtest_event(entry)] or entries
+        metrics_entries = [entry for entry in entries if not _has_speedtest_event(entry)]
+        if not metrics_entries:
+            # Keep visibility even when a bucket only contains active speed tests.
+            metrics_entries = entries
         metrics = _mean_metrics(metrics_entries)
         bucket_end = _next_bucket(bucket_start, interval)
         baseline = _baseline_for_timestamp(baseline_source, bucket_start, interval)
@@ -272,7 +275,8 @@ def _baseline_for_timestamp(
         entry for entry in history if entry["timestamp"] < timestamp and not _has_speedtest_event(entry)
     ]
     if not candidate_entries:
-        candidate_entries = [entry for entry in history if entry["timestamp"] < timestamp]
+        fallback_entries = [entry for entry in history if entry["timestamp"] < timestamp]
+        candidate_entries = fallback_entries
     if not candidate_entries:
         return {metric: None for metric in METRICS}
 

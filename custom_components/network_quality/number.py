@@ -19,6 +19,7 @@ from .const import (
     CONF_TRACEROUTE_INTERVAL,
     CONF_UPLOAD_TEST_INTERVAL,
     DATA_COORDINATOR,
+    DEFAULT_SPEEDTEST_INTERVAL,
     DOMAIN,
 )
 from .coordinator import NetworkQualityCoordinator
@@ -126,7 +127,7 @@ class NetworkQualityTestFrequencyNumber(CoordinatorEntity[NetworkQualityCoordina
         return float(
             self._entry.options.get(
                 self.entity_description.options_key,
-                self._entry.options.get(CONF_SPEEDTEST_INTERVAL, 0),
+                self._entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL),
             )
         )
 
@@ -161,4 +162,3 @@ class NetworkQualityTestFrequencyNumber(CoordinatorEntity[NetworkQualityCoordina
 
         self.hass.config_entries.async_update_entry(self._entry, options=options)
         await self.coordinator.async_request_refresh()
-

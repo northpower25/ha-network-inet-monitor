@@ -8,11 +8,11 @@ const KPI_ENTITIES = [
   { id: "sensor.network_quality_quality_score", label: "Quality Score" },
   { id: "sensor.network_quality_quality_class", label: "Quality Class" },
   { id: "binary_sensor.network_quality_internet_online", label: "Internet Online" },
-  { id: "number.network_quality_ping_test_frequency", label: "Ping frequency" },
-  { id: "number.network_quality_traceroute_test_frequency", label: "Traceroute frequency" },
-  { id: "number.network_quality_download_test_frequency", label: "Download test frequency" },
-  { id: "number.network_quality_upload_test_frequency", label: "Upload test frequency" },
-  { id: "number.network_quality_status_test_frequency", label: "Status test frequency" },
+  { id: "number.network_quality_ping_test_frequency", label: "Ping Test Frequency" },
+  { id: "number.network_quality_traceroute_test_frequency", label: "Traceroute Test Frequency" },
+  { id: "number.network_quality_download_test_frequency", label: "Download Test Frequency" },
+  { id: "number.network_quality_upload_test_frequency", label: "Upload Test Frequency" },
+  { id: "number.network_quality_status_test_frequency", label: "Status Test Frequency" },
 ];
 
 const METRIC_META = {

@@ -35,13 +35,11 @@ from .const import (
     CONF_TRACEROUTE_INTERVAL,
     CONF_UPLOAD_TEST_INTERVAL,
     CONF_UPLOAD_NORMAL,
-    DEFAULT_DOWNLOAD_TEST_INTERVAL,
     DEFAULT_PING_INTERVAL,
     DEFAULT_SPEEDTEST_INTERVAL,
     DEFAULT_STATUS_INTERVAL,
     DEFAULT_TEST_TARGETS,
     DEFAULT_TRACEROUTE_INTERVAL,
-    DEFAULT_UPLOAD_TEST_INTERVAL,
     DOMAIN,
     MIN_UPDATE_INTERVAL_SECONDS,
     UPDATE_TIMEOUT_SECONDS,
@@ -98,12 +96,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._store = Store[dict[str, Any]](hass, STORE_VERSION, f"{DOMAIN}_{entry.entry_id}_history")
 
         speedtest_interval = int(entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL))
-        download_interval = int(
-            entry.options.get(CONF_DOWNLOAD_TEST_INTERVAL, speedtest_interval or DEFAULT_DOWNLOAD_TEST_INTERVAL)
-        )
-        upload_interval = int(
-            entry.options.get(CONF_UPLOAD_TEST_INTERVAL, speedtest_interval or DEFAULT_UPLOAD_TEST_INTERVAL)
-        )
+        download_interval = int(entry.options.get(CONF_DOWNLOAD_TEST_INTERVAL, speedtest_interval))
+        upload_interval = int(entry.options.get(CONF_UPLOAD_TEST_INTERVAL, speedtest_interval))
         refresh_interval = min(
             speedtest_interval,
             int(entry.options.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL)),
