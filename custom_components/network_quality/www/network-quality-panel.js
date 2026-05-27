@@ -2,14 +2,14 @@ const NETWORK_QUALITY_DASHBOARD_URL = "/lovelace/network-quality-overview";
 
 class NetworkQualityPanel extends HTMLElement {
   connectedCallback() {
-    this._redirectToDashboard();
+    this._navigateToDashboard();
   }
 
   set hass(_) {
-    this._redirectToDashboard();
+    this._navigateToDashboard();
   }
 
-  _redirectToDashboard() {
+  _navigateToDashboard() {
     const dashboardPath = new URL(
       NETWORK_QUALITY_DASHBOARD_URL,
       window.location.origin,
@@ -19,7 +19,12 @@ class NetworkQualityPanel extends HTMLElement {
       return;
     }
 
-    window.location.replace(NETWORK_QUALITY_DASHBOARD_URL);
+    window.history.replaceState(window.history.state, "", dashboardPath);
+    window.dispatchEvent(
+      new CustomEvent("location-changed", {
+        detail: { replace: true },
+      }),
+    );
   }
 }
 
