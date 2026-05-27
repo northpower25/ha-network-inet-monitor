@@ -237,13 +237,13 @@ function escapeHtml(value) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
+    .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
 
 function formatNumber(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
-    return "—";
+    return "N/A";
   }
   const numeric = Number(value);
   return Math.abs(numeric) >= 100 ? numeric.toFixed(0) : numeric.toFixed(2).replace(/\.00$/, "");

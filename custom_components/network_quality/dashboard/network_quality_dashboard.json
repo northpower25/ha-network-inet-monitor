@@ -43,7 +43,7 @@
         {
           "type": "markdown",
           "title": "Advanced Analytics",
-          "content": "Nutze das Sidebar-Panel **Network Quality** für ML-Baselines, frei wählbare Datumsbereiche, Zeitperioden und die Service-Analyse."
+          "content": "Use the **Network Quality** sidebar panel for ML baselines, custom date ranges, selectable periods, and the monitored-services analysis."
         }
       ]
     },

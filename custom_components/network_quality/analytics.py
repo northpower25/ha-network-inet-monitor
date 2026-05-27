@@ -396,19 +396,19 @@ def _regularity_patterns(
     for label, count in counter.most_common(5):
         if count < REGULARITY_MIN_OCCURRENCES:
             continue
-        patterns.append(f"{label}: {count} auffällige Zeitfenster")
+        patterns.append(f"{label}: {count} anomaly windows")
     return patterns
 
 
 def _recurring_label(timestamp: datetime | None, interval: str) -> str:
     if timestamp is None:
-        return "Unbekannt"
+        return "Unknown"
     if interval == "hour":
-        return f"Stunde {timestamp.hour:02d}:00"
+        return f"Hour {timestamp.hour:02d}:00"
     if interval == "day":
         return timestamp.strftime("%A")
     if interval == "week":
-        return f"KW {timestamp.isocalendar().week}"
+        return f"Week {timestamp.isocalendar().week}"
     if interval == "month":
         return timestamp.strftime("%B")
     return f"Q{((timestamp.month - 1) // 3) + 1}"
