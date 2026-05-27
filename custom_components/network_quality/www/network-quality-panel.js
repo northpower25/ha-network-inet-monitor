@@ -295,6 +295,7 @@ class NetworkQualityPanel extends HTMLElement {
     this._loading = false;
     this._error = "";
     this._filters = this._buildDefaultFilters();
+    this._draftFilters = { ...this._filters };
     this._lastFetchKey = "";
   }
 
@@ -310,6 +311,7 @@ class NetworkQualityPanel extends HTMLElement {
     this._config = config || {};
     if (config?.entry_id) {
       this._filters.entry_id = config.entry_id;
+      this._draftFilters.entry_id = config.entry_id;
     }
     this._ensureData(true);
     this._render();
@@ -333,6 +335,21 @@ class NetworkQualityPanel extends HTMLElement {
       end: formatDateInput(end),
       interval: DEFAULT_INTERVAL,
       entry_id: undefined,
+    };
+  }
+
+  _captureDraftFiltersFromDom() {
+    if (!this.shadowRoot) {
+      return;
+    }
+    const start = this.shadowRoot.getElementById("range-start");
+    const end = this.shadowRoot.getElementById("range-end");
+    const interval = this.shadowRoot.getElementById("range-interval");
+    this._draftFilters = {
+      ...this._draftFilters,
+      start: start ? start.value : this._draftFilters.start,
+      end: end ? end.value : this._draftFilters.end,
+      interval: interval ? interval.value : this._draftFilters.interval,
     };
   }
 
@@ -370,10 +387,13 @@ class NetworkQualityPanel extends HTMLElement {
   }
 
   _onRefreshClick() {
-    const start = this.shadowRoot.getElementById("range-start")?.value || this._filters.start;
-    const end = this.shadowRoot.getElementById("range-end")?.value || this._filters.end;
-    const interval = this.shadowRoot.getElementById("range-interval")?.value || this._filters.interval;
-    this._filters = { ...this._filters, start, end, interval };
+    this._captureDraftFiltersFromDom();
+    this._filters = {
+      ...this._filters,
+      start: this._draftFilters.start,
+      end: this._draftFilters.end,
+      interval: this._draftFilters.interval,
+    };
     this._ensureData(true);
   }
 
@@ -569,6 +589,7 @@ class NetworkQualityPanel extends HTMLElement {
   }
 
   _render() {
+    this._captureDraftFiltersFromDom();
     const coverage = this._data?.coverage || {};
     const current = this._data?.current || {};
     this.shadowRoot.innerHTML = `
@@ -590,16 +611,16 @@ class NetworkQualityPanel extends HTMLElement {
           <div class="controls">
             <div class="field">
               <label for="range-start">From</label>
-              <input id="range-start" type="date" value="${escapeHtml(this._filters.start)}">
+              <input id="range-start" type="date" value="${escapeHtml(this._draftFilters.start)}">
             </div>
             <div class="field">
               <label for="range-end">To</label>
-              <input id="range-end" type="date" value="${escapeHtml(this._filters.end)}">
+              <input id="range-end" type="date" value="${escapeHtml(this._draftFilters.end)}">
             </div>
             <div class="field">
               <label for="range-interval">Period</label>
               <select id="range-interval">
-                ${["hour", "day", "week", "month", "quarter"].map((value) => `<option value="${value}" ${this._filters.interval === value ? "selected" : ""}>${value}</option>`).join("")}
+                ${["hour", "day", "week", "month", "quarter"].map((value) => `<option value="${value}" ${this._draftFilters.interval === value ? "selected" : ""}>${value}</option>`).join("")}
               </select>
             </div>
             <button class="action-button" id="refresh-analytics">${this._loading ? "Loading…" : "Apply"}</button>
