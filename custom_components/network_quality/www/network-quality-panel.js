@@ -1,10 +1,6 @@
 const NETWORK_QUALITY_DASHBOARD_URL = "/lovelace/network-quality-overview";
 
 class NetworkQualityPanel extends HTMLElement {
-  set hass(hass) {
-    this._hass = hass;
-  }
-
   connectedCallback() {
     this._render();
   }
