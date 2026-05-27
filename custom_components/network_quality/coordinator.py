@@ -74,6 +74,7 @@ QUALITY_CLASS_A_THRESHOLD = 90.0
 QUALITY_CLASS_B_THRESHOLD = 75.0
 QUALITY_CLASS_C_THRESHOLD = 60.0
 QUALITY_CLASS_D_THRESHOLD = 40.0
+MAX_REASONABLE_FUTURE_DAYS = 3650
 
 
 @dataclass(slots=True)
@@ -391,7 +392,9 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 unix_timestamp = float(value)
                 if unix_timestamp < 0:
                     return None
-                max_reasonable_timestamp = (datetime.now(tz=UTC) + timedelta(days=3650)).timestamp()
+                max_reasonable_timestamp = (
+                    datetime.now(tz=UTC) + timedelta(days=MAX_REASONABLE_FUTURE_DAYS)
+                ).timestamp()
                 if unix_timestamp > max_reasonable_timestamp:
                     return None
                 parsed = datetime.fromtimestamp(unix_timestamp, tz=UTC)
