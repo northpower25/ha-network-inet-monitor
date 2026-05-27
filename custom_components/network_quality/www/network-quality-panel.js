@@ -2,38 +2,24 @@ const NETWORK_QUALITY_DASHBOARD_URL = "/lovelace/network-quality-overview";
 
 class NetworkQualityPanel extends HTMLElement {
   connectedCallback() {
-    this._render();
+    this._redirectToDashboard();
   }
 
-  _render() {
-    if (!this.shadowRoot) {
-      this.attachShadow({ mode: "open" });
+  set hass(_) {
+    this._redirectToDashboard();
+  }
+
+  _redirectToDashboard() {
+    const dashboardPath = new URL(
+      NETWORK_QUALITY_DASHBOARD_URL,
+      window.location.origin,
+    ).pathname;
+
+    if (window.location.pathname === dashboardPath) {
+      return;
     }
 
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host {
-          display: block;
-          height: 100%;
-        }
-        .wrapper {
-          height: 100vh;
-          box-sizing: border-box;
-          padding: 12px;
-          background: var(--primary-background-color);
-        }
-        iframe {
-          border: 0;
-          width: 100%;
-          height: 100%;
-          background: var(--card-background-color);
-          border-radius: 12px;
-        }
-      </style>
-      <div class="wrapper">
-        <iframe src="${NETWORK_QUALITY_DASHBOARD_URL}" title="Network Quality Dashboard"></iframe>
-      </div>
-    `;
+    window.location.replace(NETWORK_QUALITY_DASHBOARD_URL);
   }
 }
 
