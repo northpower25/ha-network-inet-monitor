@@ -48,9 +48,9 @@ _SUPPORTED_SENSOR_KEYS = {
     "quality_class",
 }
 _SUPPORTED_BINARY_KEYS = {"internet_online"}
-_PANEL_VERSION = "3"
+_PANEL_VERSION = "4"
 _PANEL_FILENAME = "network-quality-panel.js"
-_PANEL_URL_PATH = "network-quality"
+_PANEL_URL_PATH = "network-quality-overview"
 _PANEL_ELEMENT_NAME = "network-quality-panel"
 _PANEL_ICON = "mdi:speedometer"
 
