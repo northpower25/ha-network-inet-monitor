@@ -388,7 +388,13 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             parsed = value if value.tzinfo else value.replace(tzinfo=UTC)
         elif isinstance(value, (int, float)):
             try:
-                parsed = datetime.fromtimestamp(float(value), tz=UTC)
+                unix_timestamp = float(value)
+                if unix_timestamp < 0:
+                    return None
+                max_reasonable_timestamp = (datetime.now(tz=UTC) + timedelta(days=3650)).timestamp()
+                if unix_timestamp > max_reasonable_timestamp:
+                    return None
+                parsed = datetime.fromtimestamp(unix_timestamp, tz=UTC)
             except (OverflowError, OSError, ValueError):
                 return None
         elif isinstance(value, str):
