@@ -312,7 +312,9 @@ class NetworkQualityPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     this._ensureData();
-    this._render();
+    if (!this._isFilterInteractionActive()) {
+      this._render();
+    }
   }
 
   set panel(_) {}
@@ -346,6 +348,11 @@ class NetworkQualityPanel extends HTMLElement {
       interval: DEFAULT_INTERVAL,
       entry_id: undefined,
     };
+  }
+
+  _isFilterInteractionActive() {
+    const activeElement = this.shadowRoot?.activeElement;
+    return Boolean(activeElement?.matches?.("input[data-filter], select[data-filter], #refresh-analytics"));
   }
 
   _onFilterInput(event) {
