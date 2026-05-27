@@ -72,11 +72,13 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
                 )
             ]
         )
-    except Exception as err:  # noqa: BLE001
+    except (ValueError, RuntimeError) as err:
         _LOGGER.debug(
             "Network Quality static frontend path registration failed or already exists: %s",
             err,
         )
+    except Exception:  # noqa: BLE001
+        _LOGGER.exception("Unexpected error during Network Quality static path registration")
 
     try:
         from homeassistant.components.panel_custom import async_register_panel  # noqa: PLC0415
@@ -95,11 +97,13 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
                 trust_external=False,
                 require_admin=False,
             )
-        except Exception as err:  # noqa: BLE001
+        except (ValueError, RuntimeError) as err:
             _LOGGER.debug(
                 "Network Quality sidebar panel registration failed or already exists: %s",
                 err,
             )
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Unexpected error during Network Quality sidebar panel registration")
 
     hass.data[f"{DOMAIN}_frontend_registered"] = True
 

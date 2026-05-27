@@ -1,3 +1,5 @@
+const NETWORK_QUALITY_DASHBOARD_URL = "/lovelace/network-quality-overview";
+
 class NetworkQualityPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
@@ -33,7 +35,7 @@ class NetworkQualityPanel extends HTMLElement {
         }
       </style>
       <div class="wrapper">
-        <iframe src="/lovelace/network-quality-overview" title="Network Quality Dashboard"></iframe>
+        <iframe src="${NETWORK_QUALITY_DASHBOARD_URL}" title="Network Quality Dashboard"></iframe>
       </div>
     `;
   }
