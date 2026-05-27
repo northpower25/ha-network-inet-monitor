@@ -1,7 +1,6 @@
 class NetworkQualityPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
-    this._render();
   }
 
   connectedCallback() {

@@ -73,24 +73,33 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
             ]
         )
     except Exception as err:  # noqa: BLE001
-        _LOGGER.debug("Static frontend path registration skipped: %s", err)
+        _LOGGER.debug(
+            "Network Quality static frontend path registration failed or already exists: %s",
+            err,
+        )
 
     try:
         from homeassistant.components.panel_custom import async_register_panel  # noqa: PLC0415
-
-        await async_register_panel(
-            hass,
-            frontend_url_path=_PANEL_URL_PATH,
-            webcomponent_name=_PANEL_ELEMENT_NAME,
-            sidebar_title="Network Quality",
-            sidebar_icon=_PANEL_ICON,
-            module_url=module_url,
-            embed_iframe=False,
-            trust_external=False,
-            require_admin=False,
-        )
-    except Exception as err:  # noqa: BLE001
-        _LOGGER.debug("Sidebar panel registration skipped: %s", err)
+    except ImportError as err:
+        _LOGGER.warning("panel_custom is unavailable, sidebar panel not registered: %s", err)
+    else:
+        try:
+            await async_register_panel(
+                hass,
+                frontend_url_path=_PANEL_URL_PATH,
+                webcomponent_name=_PANEL_ELEMENT_NAME,
+                sidebar_title="Network Quality",
+                sidebar_icon=_PANEL_ICON,
+                module_url=module_url,
+                embed_iframe=False,
+                trust_external=False,
+                require_admin=False,
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Network Quality sidebar panel registration failed or already exists: %s",
+                err,
+            )
 
     hass.data[f"{DOMAIN}_frontend_registered"] = True
 
