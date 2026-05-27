@@ -94,18 +94,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._samples: list[dict[str, float]] = []
         self._history: list[dict[str, Any]] = []
         self._store = Store[dict[str, Any]](hass, STORE_VERSION, f"{DOMAIN}_{entry.entry_id}_history")
-
-        speedtest_interval = int(entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL))
-        download_interval = int(entry.options.get(CONF_DOWNLOAD_TEST_INTERVAL, speedtest_interval))
-        upload_interval = int(entry.options.get(CONF_UPLOAD_TEST_INTERVAL, speedtest_interval))
-        refresh_interval = min(
-            speedtest_interval,
-            int(entry.options.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL)),
-            int(entry.options.get(CONF_TRACEROUTE_INTERVAL, DEFAULT_TRACEROUTE_INTERVAL)),
-            download_interval,
-            upload_interval,
-            int(entry.options.get(CONF_STATUS_INTERVAL, DEFAULT_STATUS_INTERVAL)),
-        )
+        refresh_interval = self._resolve_refresh_interval(entry.options)
         super().__init__(
             hass,
             _LOGGER,
@@ -133,6 +122,9 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Update and normalize data."""
         now = datetime.now(tz=UTC)
         options = self.entry.options
+        self.update_interval = timedelta(
+            seconds=max(MIN_UPDATE_INTERVAL_SECONDS, self._resolve_refresh_interval(options))
+        )
         contract = self.entry.data
 
         download = 0.0
@@ -394,11 +386,32 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         parsed = None
         if isinstance(value, datetime):
             parsed = value if value.tzinfo else value.replace(tzinfo=UTC)
+        elif isinstance(value, (int, float)):
+            try:
+                parsed = datetime.fromtimestamp(float(value), tz=UTC)
+            except (OverflowError, OSError, ValueError):
+                return None
         elif isinstance(value, str):
-            parsed = parse_iso_datetime(value)
+            try:
+                parsed = parse_iso_datetime(value)
+            except ValueError:
+                return None
         if parsed is None:
             return None
         return parsed.astimezone(UTC).isoformat()
+
+    def _resolve_refresh_interval(self, options: dict[str, Any]) -> int:
+        speedtest_interval = int(options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL))
+        download_interval = int(options.get(CONF_DOWNLOAD_TEST_INTERVAL, speedtest_interval))
+        upload_interval = int(options.get(CONF_UPLOAD_TEST_INTERVAL, speedtest_interval))
+        return min(
+            speedtest_interval,
+            int(options.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL)),
+            int(options.get(CONF_TRACEROUTE_INTERVAL, DEFAULT_TRACEROUTE_INTERVAL)),
+            download_interval,
+            upload_interval,
+            int(options.get(CONF_STATUS_INTERVAL, DEFAULT_STATUS_INTERVAL)),
+        )
 
     def _rolling_aggregates(self) -> dict[str, float]:
         if not self._samples:
