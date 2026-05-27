@@ -295,7 +295,12 @@ class NetworkQualityPanel extends HTMLElement {
     this._loading = false;
     this._error = "";
     this._filters = this._buildDefaultFilters();
-    this._draftFilters = { ...this._filters };
+    this._draftFilters = {
+      start: this._filters.start,
+      end: this._filters.end,
+      interval: this._filters.interval,
+      entry_id: this._filters.entry_id,
+    };
     this._lastFetchKey = "";
   }
 
@@ -339,11 +344,12 @@ class NetworkQualityPanel extends HTMLElement {
   }
 
   _onFilterInput(event) {
-    const field = event.currentTarget?.dataset?.filter;
+    const target = event.currentTarget;
+    const field = target.dataset.filter;
     if (!field) {
       return;
     }
-    this._draftFilters[field] = event.currentTarget.value;
+    this._draftFilters[field] = target.value;
   }
 
   async _ensureData(force = false) {
@@ -393,8 +399,10 @@ class NetworkQualityPanel extends HTMLElement {
     this.shadowRoot.querySelectorAll(".tab").forEach((button) => {
       button.addEventListener("click", (event) => this._onTabClick(event));
     });
-    this.shadowRoot.querySelectorAll("[data-filter]").forEach((field) => {
+    this.shadowRoot.querySelectorAll("input[data-filter]").forEach((field) => {
       field.addEventListener("input", (event) => this._onFilterInput(event));
+    });
+    this.shadowRoot.querySelectorAll("select[data-filter]").forEach((field) => {
       field.addEventListener("change", (event) => this._onFilterInput(event));
     });
     this.shadowRoot.getElementById("refresh-analytics")?.addEventListener("click", () => this._onRefreshClick());
