@@ -375,7 +375,9 @@ class NetworkQualityPanel extends HTMLElement {
       this._deferredRenderTimer = null;
     }
     const lockWaitMs = this._filterInteractionLockUntil - Date.now();
-    const waitMs = lockWaitMs > 0 ? lockWaitMs : ACTIVE_FILTER_POLL_MS;
+    const waitMs = lockWaitMs > 0
+      ? Math.min(lockWaitMs, FILTER_INTERACTION_LOCK_MS)
+      : ACTIVE_FILTER_POLL_MS;
     this._deferredRenderTimer = setTimeout(() => {
       this._deferredRenderTimer = null;
       if (!this._isFilterInteractionActive()) {
