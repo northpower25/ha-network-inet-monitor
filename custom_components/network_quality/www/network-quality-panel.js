@@ -377,6 +377,8 @@ class NetworkQualityPanel extends HTMLElement {
       this._deferredRenderTimer = null;
       if (!this._isFilterInteractionActive()) {
         this._render();
+      } else {
+        this._scheduleDeferredRender();
       }
     }, waitMs);
   }
