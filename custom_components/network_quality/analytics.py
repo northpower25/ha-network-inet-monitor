@@ -27,10 +27,12 @@ HIGHER_IS_BETTER_METRICS = {
 }
 LOWER_IS_BETTER_METRICS = {"ping", "jitter", "packet_loss"}
 BASELINE_MINIMUM_SAMPLES = 3
+BASELINE_FALLBACK_SAMPLES = 24
 DRAMATIC_DROP_FACTOR = 0.75
 DRAMATIC_RISE_FACTOR = 1.35
 MIN_HISTORY_DAYS_FOR_REGULARITY = 7
 REGULARITY_MIN_OCCURRENCES = 3
+REGULARITY_LOOKBACK_DAYS = 90
 OUTAGE_AVAILABILITY_THRESHOLD = 90.0
 QUALITY_DROP_SCORE_DELTA = 15.0
 QUALITY_DROP_SCORE_FACTOR = 0.8
@@ -149,7 +151,7 @@ def compute_analysis_overview(
 
     recurring_patterns = build_dashboard_payload(
         history,
-        start=max(history[0]["timestamp"], now - timedelta(days=90)),
+        start=max(history[0]["timestamp"], now - timedelta(days=REGULARITY_LOOKBACK_DAYS)),
         end=now,
         interval="day",
     ).get("summary", {}).get("recurring_patterns", [])
@@ -259,7 +261,7 @@ def _baseline_for_timestamp(
         entry for entry in candidate_entries if _slot_key(entry["timestamp"], interval) == _slot_key(timestamp, interval)
     ]
     if len(matching_entries) < BASELINE_MINIMUM_SAMPLES:
-        matching_entries = candidate_entries[-max(BASELINE_MINIMUM_SAMPLES, 24) :]
+        matching_entries = candidate_entries[-max(BASELINE_MINIMUM_SAMPLES, BASELINE_FALLBACK_SAMPLES) :]
 
     return _mean_metrics(matching_entries)
 
@@ -382,7 +384,9 @@ def _regularity_patterns(
     if not history or (now - history[0]["timestamp"]).days < MIN_HISTORY_DAYS_FOR_REGULARITY:
         return []
 
-    recent_history = [entry for entry in history if entry["timestamp"] >= now - timedelta(days=90)]
+    recent_history = [
+        entry for entry in history if entry["timestamp"] >= now - timedelta(days=REGULARITY_LOOKBACK_DAYS)
+    ]
     buckets = _build_buckets(recent_history, interval, history)
     counter: Counter[str] = Counter()
     for bucket in buckets:

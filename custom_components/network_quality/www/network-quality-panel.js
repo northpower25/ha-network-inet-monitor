@@ -28,6 +28,10 @@ const TABS = [
 ];
 
 const DEFAULT_INTERVAL = "day";
+const CHART_WIDTH = 320;
+const CHART_HEIGHT = 180;
+const CHART_TOP_PADDING = 8;
+const CHART_VERTICAL_PADDING = 16;
 
 const STYLE = `
   :host {
@@ -242,10 +246,10 @@ function escapeHtml(value) {
 }
 
 function formatNumber(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+  const numeric = Number(value);
+  if (value === null || value === undefined || Number.isNaN(numeric)) {
     return "N/A";
   }
-  const numeric = Number(value);
   return Math.abs(numeric) >= 100 ? numeric.toFixed(0) : numeric.toFixed(2).replace(/\.00$/, "");
 }
 
@@ -443,11 +447,14 @@ class NetworkQualityPanel extends HTMLElement {
     const maxValue = Math.max(...points, ...baselinePoints, 1);
     const minValue = Math.min(...points, ...baselinePoints, 0);
     const spread = Math.max(maxValue - minValue, 1);
-    const width = 320;
-    const height = 180;
     const toPoint = (value, index) => {
-      const x = buckets.length === 1 ? width / 2 : (index / (buckets.length - 1)) * width;
-      const y = height - (((value - minValue) / spread) * (height - 16) + 8);
+      const x = buckets.length === 1
+        ? CHART_WIDTH / 2
+        : (index / (buckets.length - 1)) * CHART_WIDTH;
+      const y = CHART_HEIGHT - (
+        ((value - minValue) / spread) * (CHART_HEIGHT - CHART_VERTICAL_PADDING)
+        + CHART_TOP_PADDING
+      );
       return `${x},${y}`;
     };
     const series = points.map(toPoint).join(" ");
@@ -463,7 +470,7 @@ class NetworkQualityPanel extends HTMLElement {
       <div class="chart-card">
         <h3>${escapeHtml(meta.label)}</h3>
         <div class="muted">Current ${escapeHtml(formatValue(metric, this._data?.current?.[metric]))} · Baseline ${escapeHtml(formatValue(metric, this._data?.baseline_current?.[metric]))}</div>
-        <svg viewBox="0 0 320 180" class="chart-svg" role="img" aria-label="${escapeHtml(meta.label)} history chart">
+        <svg viewBox="0 0 ${CHART_WIDTH} ${CHART_HEIGHT}" class="chart-svg" role="img" aria-label="${escapeHtml(meta.label)} history chart">
           <polyline fill="none" stroke="rgba(3,169,244,.35)" stroke-width="2" stroke-dasharray="5 4" points="${baselineSeries}"></polyline>
           <polyline fill="none" stroke="var(--accent-color)" stroke-width="3" points="${series}"></polyline>
           ${markers}

@@ -63,6 +63,7 @@ MAX_SAMPLE_HISTORY = 500
 MAX_STORED_HISTORY_DAYS = 400
 STORE_VERSION = 1
 STORED_SAMPLE_INTERVAL = timedelta(minutes=15)
+SCORE_CHANGE_THRESHOLD = 10.0
 # Project-specific quality grade boundaries for A-E classification.
 QUALITY_CLASS_A_THRESHOLD = 90.0
 QUALITY_CLASS_B_THRESHOLD = 75.0
@@ -299,7 +300,10 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             last_entry = self._history[-1]
             elapsed = sample["timestamp"] - last_entry["timestamp"]
             status_changed = bool(last_entry.get("online")) != bool(sample.get("online"))
-            score_changed = abs(float(last_entry.get("score", 0.0)) - float(sample.get("score", 0.0))) >= 10.0
+            score_changed = (
+                abs(float(last_entry.get("score", 0.0)) - float(sample.get("score", 0.0)))
+                >= SCORE_CHANGE_THRESHOLD
+            )
             should_store = elapsed >= STORED_SAMPLE_INTERVAL or status_changed or score_changed
 
         if should_store:

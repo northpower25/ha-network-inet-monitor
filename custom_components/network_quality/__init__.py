@@ -142,7 +142,10 @@ def _parse_dashboard_date(value: str | None, *, end_of_day: bool = False) -> dat
     """Parse dashboard date filters."""
     if not value:
         return None
-    parsed_date = date.fromisoformat(value)
+    try:
+        parsed_date = date.fromisoformat(value)
+    except ValueError as err:
+        raise ValueError("Invalid date format: expected YYYY-MM-DD") from err
     return datetime.combine(
         parsed_date,
         time.max if end_of_day else time.min,
