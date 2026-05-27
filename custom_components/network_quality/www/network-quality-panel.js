@@ -295,6 +295,12 @@ class NetworkQualityPanel extends HTMLElement {
     this._loading = false;
     this._error = "";
     this._filters = this._buildDefaultFilters();
+    this._draftFilters = {
+      start: this._filters.start,
+      end: this._filters.end,
+      interval: this._filters.interval,
+      entry_id: this._filters.entry_id,
+    };
     this._lastFetchKey = "";
   }
 
@@ -310,6 +316,7 @@ class NetworkQualityPanel extends HTMLElement {
     this._config = config || {};
     if (config?.entry_id) {
       this._filters.entry_id = config.entry_id;
+      this._draftFilters.entry_id = config.entry_id;
     }
     this._ensureData(true);
     this._render();
@@ -334,6 +341,15 @@ class NetworkQualityPanel extends HTMLElement {
       interval: DEFAULT_INTERVAL,
       entry_id: undefined,
     };
+  }
+
+  _onFilterInput(event) {
+    const target = event.currentTarget;
+    const field = target.dataset.filter;
+    if (!field) {
+      return;
+    }
+    this._draftFilters[field] = target.value;
   }
 
   async _ensureData(force = false) {
@@ -370,16 +386,24 @@ class NetworkQualityPanel extends HTMLElement {
   }
 
   _onRefreshClick() {
-    const start = this.shadowRoot.getElementById("range-start")?.value || this._filters.start;
-    const end = this.shadowRoot.getElementById("range-end")?.value || this._filters.end;
-    const interval = this.shadowRoot.getElementById("range-interval")?.value || this._filters.interval;
-    this._filters = { ...this._filters, start, end, interval };
+    this._filters = {
+      ...this._filters,
+      start: this._draftFilters.start,
+      end: this._draftFilters.end,
+      interval: this._draftFilters.interval,
+    };
     this._ensureData(true);
   }
 
   _bindEvents() {
     this.shadowRoot.querySelectorAll(".tab").forEach((button) => {
       button.addEventListener("click", (event) => this._onTabClick(event));
+    });
+    this.shadowRoot.querySelectorAll("input[data-filter]").forEach((field) => {
+      field.addEventListener("input", (event) => this._onFilterInput(event));
+    });
+    this.shadowRoot.querySelectorAll("select[data-filter]").forEach((field) => {
+      field.addEventListener("change", (event) => this._onFilterInput(event));
     });
     this.shadowRoot.getElementById("refresh-analytics")?.addEventListener("click", () => this._onRefreshClick());
   }
@@ -590,16 +614,16 @@ class NetworkQualityPanel extends HTMLElement {
           <div class="controls">
             <div class="field">
               <label for="range-start">From</label>
-              <input id="range-start" type="date" value="${escapeHtml(this._filters.start)}">
+              <input id="range-start" data-filter="start" type="date" value="${escapeHtml(this._draftFilters.start)}">
             </div>
             <div class="field">
               <label for="range-end">To</label>
-              <input id="range-end" type="date" value="${escapeHtml(this._filters.end)}">
+              <input id="range-end" data-filter="end" type="date" value="${escapeHtml(this._draftFilters.end)}">
             </div>
             <div class="field">
               <label for="range-interval">Period</label>
-              <select id="range-interval">
-                ${["hour", "day", "week", "month", "quarter"].map((value) => `<option value="${value}" ${this._filters.interval === value ? "selected" : ""}>${value}</option>`).join("")}
+              <select id="range-interval" data-filter="interval">
+                ${["hour", "day", "week", "month", "quarter"].map((value) => `<option value="${value}" ${this._draftFilters.interval === value ? "selected" : ""}>${value}</option>`).join("")}
               </select>
             </div>
             <button class="action-button" id="refresh-analytics">${this._loading ? "Loading…" : "Apply"}</button>
