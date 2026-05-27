@@ -33,6 +33,10 @@ const TABS = [
 ];
 
 const DEFAULT_INTERVAL = "day";
+const FILTER_INPUT_SELECTOR = "input[data-filter], select[data-filter]";
+// Keep picker interactions stable even when browser date dialogs temporarily steal focus.
+const FILTER_INTERACTION_LOCK_MS = 5000;
+const ACTIVE_FILTER_POLL_MS = 150;
 const CHART_WIDTH = 320;
 const CHART_HEIGHT = 180;
 const CHART_TOP_PADDING = 8;
@@ -306,13 +310,19 @@ class NetworkQualityPanel extends HTMLElement {
       interval: this._filters.interval,
       entry_id: this._filters.entry_id,
     };
+    this._filterInteractionLockUntil = 0;
+    this._deferredRenderTimer = null;
     this._lastFetchKey = "";
   }
 
   set hass(hass) {
     this._hass = hass;
     this._ensureData();
-    this._render();
+    if (!this._isFilterInteractionActive()) {
+      this._render();
+    } else {
+      this._scheduleDeferredRender();
+    }
   }
 
   set panel(_) {}
@@ -332,6 +342,13 @@ class NetworkQualityPanel extends HTMLElement {
     this._render();
   }
 
+  disconnectedCallback() {
+    if (this._deferredRenderTimer) {
+      clearTimeout(this._deferredRenderTimer);
+      this._deferredRenderTimer = null;
+    }
+  }
+
   getCardSize() {
     return 8;
   }
@@ -348,12 +365,44 @@ class NetworkQualityPanel extends HTMLElement {
     };
   }
 
+  _markFilterInteraction(duration = FILTER_INTERACTION_LOCK_MS) {
+    this._filterInteractionLockUntil = Date.now() + duration;
+  }
+
+  _scheduleDeferredRender() {
+    if (this._deferredRenderTimer) {
+      clearTimeout(this._deferredRenderTimer);
+      this._deferredRenderTimer = null;
+    }
+    const lockWaitMs = this._filterInteractionLockUntil - Date.now();
+    const waitMs = lockWaitMs > 0
+      ? Math.min(lockWaitMs, FILTER_INTERACTION_LOCK_MS)
+      : ACTIVE_FILTER_POLL_MS;
+    this._deferredRenderTimer = setTimeout(() => {
+      this._deferredRenderTimer = null;
+      if (!this._isFilterInteractionActive()) {
+        this._render();
+      } else {
+        this._scheduleDeferredRender();
+      }
+    }, waitMs);
+  }
+
+  _isFilterInteractionActive() {
+    const activeElement = this.shadowRoot?.activeElement;
+    return Boolean(
+      activeElement?.matches?.(FILTER_INPUT_SELECTOR)
+      || Date.now() < this._filterInteractionLockUntil
+    );
+  }
+
   _onFilterInput(event) {
     const target = event.currentTarget;
     const field = target.dataset.filter;
     if (!field) {
       return;
     }
+    this._markFilterInteraction();
     this._draftFilters[field] = target.value;
   }
 
@@ -391,6 +440,7 @@ class NetworkQualityPanel extends HTMLElement {
   }
 
   _onRefreshClick() {
+    this._filterInteractionLockUntil = 0;
     this._filters = {
       ...this._filters,
       start: this._draftFilters.start,
@@ -405,9 +455,13 @@ class NetworkQualityPanel extends HTMLElement {
       button.addEventListener("click", (event) => this._onTabClick(event));
     });
     this.shadowRoot.querySelectorAll("input[data-filter]").forEach((field) => {
+      field.addEventListener("focus", () => this._markFilterInteraction());
+      field.addEventListener("pointerdown", () => this._markFilterInteraction());
       field.addEventListener("input", (event) => this._onFilterInput(event));
     });
     this.shadowRoot.querySelectorAll("select[data-filter]").forEach((field) => {
+      field.addEventListener("focus", () => this._markFilterInteraction());
+      field.addEventListener("pointerdown", () => this._markFilterInteraction());
       field.addEventListener("change", (event) => this._onFilterInput(event));
     });
     this.shadowRoot.getElementById("refresh-analytics")?.addEventListener("click", () => this._onRefreshClick());
