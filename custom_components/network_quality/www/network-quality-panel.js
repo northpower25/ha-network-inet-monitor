@@ -338,19 +338,12 @@ class NetworkQualityPanel extends HTMLElement {
     };
   }
 
-  _captureDraftFiltersFromDom() {
-    if (!this.shadowRoot) {
+  _onFilterInput(event) {
+    const field = event.currentTarget?.dataset?.filter;
+    if (!field) {
       return;
     }
-    const start = this.shadowRoot.getElementById("range-start");
-    const end = this.shadowRoot.getElementById("range-end");
-    const interval = this.shadowRoot.getElementById("range-interval");
-    this._draftFilters = {
-      ...this._draftFilters,
-      start: start ? start.value : this._draftFilters.start,
-      end: end ? end.value : this._draftFilters.end,
-      interval: interval ? interval.value : this._draftFilters.interval,
-    };
+    this._draftFilters[field] = event.currentTarget.value;
   }
 
   async _ensureData(force = false) {
@@ -387,7 +380,6 @@ class NetworkQualityPanel extends HTMLElement {
   }
 
   _onRefreshClick() {
-    this._captureDraftFiltersFromDom();
     this._filters = {
       ...this._filters,
       start: this._draftFilters.start,
@@ -400,6 +392,10 @@ class NetworkQualityPanel extends HTMLElement {
   _bindEvents() {
     this.shadowRoot.querySelectorAll(".tab").forEach((button) => {
       button.addEventListener("click", (event) => this._onTabClick(event));
+    });
+    this.shadowRoot.querySelectorAll("[data-filter]").forEach((field) => {
+      field.addEventListener("input", (event) => this._onFilterInput(event));
+      field.addEventListener("change", (event) => this._onFilterInput(event));
     });
     this.shadowRoot.getElementById("refresh-analytics")?.addEventListener("click", () => this._onRefreshClick());
   }
@@ -589,7 +585,6 @@ class NetworkQualityPanel extends HTMLElement {
   }
 
   _render() {
-    this._captureDraftFiltersFromDom();
     const coverage = this._data?.coverage || {};
     const current = this._data?.current || {};
     this.shadowRoot.innerHTML = `
@@ -611,15 +606,15 @@ class NetworkQualityPanel extends HTMLElement {
           <div class="controls">
             <div class="field">
               <label for="range-start">From</label>
-              <input id="range-start" type="date" value="${escapeHtml(this._draftFilters.start)}">
+              <input id="range-start" data-filter="start" type="date" value="${escapeHtml(this._draftFilters.start)}">
             </div>
             <div class="field">
               <label for="range-end">To</label>
-              <input id="range-end" type="date" value="${escapeHtml(this._draftFilters.end)}">
+              <input id="range-end" data-filter="end" type="date" value="${escapeHtml(this._draftFilters.end)}">
             </div>
             <div class="field">
               <label for="range-interval">Period</label>
-              <select id="range-interval">
+              <select id="range-interval" data-filter="interval">
                 ${["hour", "day", "week", "month", "quarter"].map((value) => `<option value="${value}" ${this._draftFilters.interval === value ? "selected" : ""}>${value}</option>`).join("")}
               </select>
             </div>
