@@ -309,6 +309,7 @@ class NetworkQualityPanel extends HTMLElement {
       entry_id: this._filters.entry_id,
     };
     this._filterInteractionLockUntil = 0;
+    this._deferredRenderTimer = null;
     this._lastFetchKey = "";
   }
 
@@ -317,7 +318,9 @@ class NetworkQualityPanel extends HTMLElement {
     this._ensureData();
     if (!this._isFilterInteractionActive()) {
       this._render();
+      return;
     }
+    this._scheduleDeferredRender();
   }
 
   set panel(_) {}
@@ -335,6 +338,13 @@ class NetworkQualityPanel extends HTMLElement {
   connectedCallback() {
     this._ensureData();
     this._render();
+  }
+
+  disconnectedCallback() {
+    if (this._deferredRenderTimer) {
+      clearTimeout(this._deferredRenderTimer);
+      this._deferredRenderTimer = null;
+    }
   }
 
   getCardSize() {
@@ -355,6 +365,20 @@ class NetworkQualityPanel extends HTMLElement {
 
   _markFilterInteraction(duration = FILTER_INTERACTION_LOCK_MS) {
     this._filterInteractionLockUntil = Date.now() + duration;
+  }
+
+  _scheduleDeferredRender() {
+    if (this._deferredRenderTimer) {
+      clearTimeout(this._deferredRenderTimer);
+      this._deferredRenderTimer = null;
+    }
+    const waitMs = Math.max(this._filterInteractionLockUntil - Date.now(), 0);
+    this._deferredRenderTimer = setTimeout(() => {
+      this._deferredRenderTimer = null;
+      if (!this._isFilterInteractionActive()) {
+        this._render();
+      }
+    }, waitMs);
   }
 
   _isFilterInteractionActive() {
@@ -409,6 +433,7 @@ class NetworkQualityPanel extends HTMLElement {
   }
 
   _onRefreshClick() {
+    this._filterInteractionLockUntil = 0;
     this._filters = {
       ...this._filters,
       start: this._draftFilters.start,
