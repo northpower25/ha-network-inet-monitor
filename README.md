@@ -129,6 +129,8 @@ Add-on-Optionen (im Add-on selbst):
 - `bind_host`: meist `0.0.0.0`
 - `bind_port`: Standard `8099`
 - `interval_seconds`: Update-Intervall des Agenten (typisch 30–120)
+- `speedtest_interval_seconds`: Intervall für echte Download-/Upload-Tests (typisch 900+)
+- `speedtest_timeout_seconds`: Timeout für einen einzelnen Speedtest-Lauf
 - `connect_timeout_seconds`: Timeout pro Probe (typisch 2–5)
 - `probe_attempts`: Anzahl Probes pro Zyklus (typisch 3)
 - `targets`: Ziele für Reachability/Ping/Jitter/Verfügbarkeit

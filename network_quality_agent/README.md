@@ -44,6 +44,16 @@ Die Integration sendet dafür einen Authorization-Header mit Bearer-Token.
 - Funktion: Intervall, in dem neue Messwerte erzeugt werden.
 - Empfehlung: 30–120 Sekunden für den Normalbetrieb.
 
+### `speedtest_interval_seconds`
+- Standard: `900`
+- Funktion: Intervall für echte Download-/Upload-Tests via Ookla/speedtest.net.
+- Empfehlung: 900–3600 Sekunden; `0` deaktiviert die Speedtests.
+
+### `speedtest_timeout_seconds`
+- Standard: `120`
+- Funktion: Maximale Laufzeit eines einzelnen Speedtest-Laufs.
+- Empfehlung: Nur erhöhen, wenn sehr langsame Leitungen oder Timeouts auftreten.
+
 ### `connect_timeout_seconds`
 - Standard: `3`
 - Funktion: Timeout pro Verbindungsprobe zu einem Ziel.
@@ -71,3 +81,4 @@ Empfohlene Integrationseinstellungen bei Add-on-Nutzung:
 - `agent_mode = addon`
 - `agent_url` leer lassen (nutzt automatisch `http://127.0.0.1:8099`)
 - `agent_token` nur dann setzen, wenn im Add-on `token` gesetzt wurde
+- `speedtest_interval_seconds` im Add-on passend zu den gewünschten Download-/Upload-Intervallen setzen

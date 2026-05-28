@@ -1,1 +1,2 @@
 aiohttp==3.10.11
+speedtest-cli==2.1.3
