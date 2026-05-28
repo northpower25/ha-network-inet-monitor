@@ -43,7 +43,9 @@ Nach dem Neustart:
 - Test-Intervalle (Speedtest, Ping, Traceroute, Download-Test, Upload-Test, Status)
 - Opt-in für externe Servicechecks
 - Testziele (IP, Hostname oder URL; kommasepariert oder zeilenweise)
-- `agent_url` für einen lokalen Mess-Agenten
+- Messmodus `agent_mode` (`fallback`, `local_runner`, `addon`, `external_agent`)
+- `agent_url` für lokalen/externalen Mess-Agenten (bei `addon` optional; Default `http://127.0.0.1:8099`)
+- optionales `agent_token` (Bearer-Token für `/metrics`)
 - Auswahl der zu überwachenden Dienste (z. B. Amazon, Google, Netflix, OpenAI, GitHub, …)
 
 ### Wichtige Hinweise zur Konfiguration
@@ -58,17 +60,25 @@ Nach dem Neustart:
 
 Die Integration nutzt einen `DataUpdateCoordinator` als zentrale Sammelstelle.
 
-Es gibt zwei Betriebsarten:
+Es gibt vier Betriebsarten:
 
-1. **Mit Agent (`agent_url` gesetzt)**
+1. **`external_agent`**
    - Abruf von `.../metrics`
    - Übernahme von Download, Upload, Ping, Jitter, Paketverlust, Verfügbarkeit, Online-Status
    - Optional methodenspezifische Übernahme für Ookla/Fast.com/iPerf3/HTTP-Download aus `methods` oder kompatiblen Feldern im Agent-Payload
    - Übernahme von Testlauf-Metadaten (z. B. letzte Läufe, aktive Tests)
 
-2. **Ohne Agent (`agent_url` leer)**
+2. **`addon` (empfohlen)**
+   - Nutzt denselben `/metrics`-Vertrag wie `external_agent`
+   - Falls keine URL gesetzt ist, wird standardmäßig `http://127.0.0.1:8099/metrics` verwendet
+
+3. **`local_runner`**
+   - Leichte lokale Probe-Messungen (TCP-Connect) mit festen Laufzeit-/Parallelitätslimits
+   - Download/Upload bleiben auf Vertrags-Normalwerten
+
+4. **`fallback`**
    - Download/Upload werden aus den konfigurierten Vertrags-Normalwerten initialisiert
-   - Lokale Fallback-Messung per TCP-Connect-Probes auf konfigurierte Ziele (Port 443)
+   - Lokale Fallback-Messung per TCP-Connect-Probes auf konfigurierte Ziele (Port 443, lightweight)
    - Daraus werden Ping/Jitter/Paketverlust/Verfügbarkeit und Online-Status bestimmt
 
 ### 2. Bewertung und Kennzahlen

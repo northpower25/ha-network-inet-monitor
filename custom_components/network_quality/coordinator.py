@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 import logging
 import math
+from time import monotonic
 from statistics import mean
 from typing import Any
 
@@ -25,6 +26,13 @@ from .analytics import (
     trim_history,
 )
 from .const import (
+    AGENT_MODE_ADDON,
+    AGENT_MODE_EXTERNAL_AGENT,
+    AGENT_MODE_FALLBACK,
+    AGENT_MODE_LOCAL_RUNNER,
+    AGENT_MODES,
+    CONF_AGENT_MODE,
+    CONF_AGENT_TOKEN,
     CONF_AGENT_URL,
     CONF_DOWNLOAD_TEST_INTERVAL,
     CONF_DOWNLOAD_NORMAL,
@@ -37,6 +45,7 @@ from .const import (
     CONF_TRACEROUTE_INTERVAL,
     CONF_UPLOAD_TEST_INTERVAL,
     CONF_UPLOAD_NORMAL,
+    DEFAULT_ADDON_AGENT_URL,
     DEFAULT_PING_INTERVAL,
     DEFAULT_SPEEDTEST_INTERVAL,
     DEFAULT_STATUS_INTERVAL,
@@ -82,6 +91,10 @@ DIAGNOSTIC_STALE_FACTOR = 2.0
 FALLBACK_CONNECT_PROBE_ATTEMPTS = 3
 FALLBACK_CONNECT_TIMEOUT_SECONDS = 3.0
 FALLBACK_CONNECT_PORT = 443
+LOCAL_RUNNER_TOTAL_TIMEOUT_SECONDS = 8.0
+LOCAL_RUNNER_MAX_PARALLEL_PROBES = 2
+AGENT_CIRCUIT_BREAKER_THRESHOLD = 3
+AGENT_CIRCUIT_BREAKER_SECONDS = 60
 
 
 @dataclass(slots=True)
@@ -106,6 +119,9 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_error_at: str | None = None
         self._last_error_message: str | None = None
         self._last_error_type: str | None = None
+        self._agent_failures = 0
+        self._agent_circuit_open_until_monotonic = 0.0
+        self._agent_circuit_open_until_iso: str | None = None
         refresh_interval = self._resolve_refresh_interval(entry.options)
         super().__init__(
             hass,
@@ -150,19 +166,21 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         active_test_events: list[str] = []
         method_metrics: dict[str, dict[str, float]] = {}
 
-        agent_url = options.get(CONF_AGENT_URL)
+        agent_mode = self._resolve_agent_mode(options)
+        agent_url = self._resolve_agent_url(options=options, mode=agent_mode)
+        agent_token = str(options.get(CONF_AGENT_TOKEN, "")).strip()
         services = options.get(CONF_SERVICE_STATUSES, [])
         external_opt_in = options.get(CONF_EXTERNAL_OPT_IN, False)
         targets = options.get(CONF_TEST_TARGETS, DEFAULT_TEST_TARGETS)
 
         try:
-            if agent_url:
-                response = await self._session.get(
-                    f"{agent_url.rstrip('/')}/metrics",
-                    timeout=UPDATE_TIMEOUT_SECONDS,
+            if agent_mode == AGENT_MODE_EXTERNAL_AGENT and not agent_url:
+                raise UpdateFailed("external_agent mode requires agent_url")
+            if agent_mode in (AGENT_MODE_ADDON, AGENT_MODE_EXTERNAL_AGENT) and agent_url:
+                payload = await self._async_fetch_agent_metrics(
+                    agent_url=agent_url,
+                    agent_token=agent_token,
                 )
-                response.raise_for_status()
-                payload = await response.json()
                 method_metrics = self._extract_method_metrics(payload)
                 download = self._first_float_value(
                     payload.get("download_mbps"),
@@ -198,22 +216,40 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 online = bool(payload.get("online", self._is_online_from_metrics(download, ping)))
                 tests = self._extract_test_runs(payload)
                 active_test_events = self._extract_active_test_events(payload, tests)
+            elif agent_mode == AGENT_MODE_LOCAL_RUNNER:
+                (
+                    download,
+                    upload,
+                    online,
+                    ping,
+                    jitter,
+                    packet_loss,
+                    availability,
+                ) = await self._async_collect_local_mode_metrics(contract=contract, targets=targets)
+                tests = self._build_default_test_runs(now, agent_mode)
+                active_test_events = []
             else:
-                download = float(contract.get(CONF_DOWNLOAD_NORMAL, 0.0))
-                upload = float(contract.get(CONF_UPLOAD_NORMAL, 0.0))
-                fallback_probe = await self._async_collect_local_probe_metrics(targets)
-                online = bool(fallback_probe["online"])
-                ping = float(fallback_probe["ping"])
-                jitter = float(fallback_probe["jitter"])
-                packet_loss = float(fallback_probe["packet_loss"])
-                availability = float(fallback_probe["availability"])
-                tests = self._build_default_test_runs(now)
+                (
+                    download,
+                    upload,
+                    online,
+                    ping,
+                    jitter,
+                    packet_loss,
+                    availability,
+                ) = await self._async_collect_local_mode_metrics(contract=contract, targets=targets)
+                tests = self._build_default_test_runs(now, agent_mode)
                 active_test_events = []
         except Exception as err:
             self._last_error_at = now.isoformat()
             self._last_error_message = str(err)
             self._last_error_type = type(err).__name__
-            raise UpdateFailed(f"Failed to update from agent endpoint: {err}") from err
+            source = (
+                "agent endpoint"
+                if agent_mode in (AGENT_MODE_ADDON, AGENT_MODE_EXTERNAL_AGENT)
+                else "local runner"
+            )
+            raise UpdateFailed(f"Failed to update from {source}: {err}") from err
 
         sample = {
             "download": max(0.0, download),
@@ -248,6 +284,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "timestamp": now.isoformat(),
             "sample": sample,
             "online": online,
+            "agent_mode": agent_mode,
+            "agent_url": agent_url,
             "targets": targets,
             "services": service_statuses,
             "contract_ratio": stored_sample["contract_ratio"],
@@ -260,12 +298,96 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "analysis": analysis,
         }
 
+    def _resolve_agent_mode(self, options: dict[str, Any]) -> str:
+        mode = str(options.get(CONF_AGENT_MODE, "")).strip().lower()
+        if mode in AGENT_MODES:
+            return mode
+        if str(options.get(CONF_AGENT_URL, "")).strip():
+            return AGENT_MODE_EXTERNAL_AGENT
+        return AGENT_MODE_FALLBACK
+
+    def _resolve_agent_url(self, *, options: dict[str, Any], mode: str) -> str:
+        raw = str(options.get(CONF_AGENT_URL, "")).strip()
+        if raw:
+            return raw
+        if mode == AGENT_MODE_ADDON:
+            return DEFAULT_ADDON_AGENT_URL
+        return ""
+
+    async def _async_fetch_agent_metrics(
+        self,
+        *,
+        agent_url: str,
+        agent_token: str,
+    ) -> dict[str, Any]:
+        if monotonic() < self._agent_circuit_open_until_monotonic:
+            raise UpdateFailed("Agent circuit breaker active")
+        headers: dict[str, str] = {}
+        if agent_token:
+            headers["Authorization"] = "Bearer " + agent_token
+        try:
+            response = await self._session.get(
+                f"{agent_url.rstrip('/')}/metrics",
+                timeout=UPDATE_TIMEOUT_SECONDS,
+                headers=headers,
+            )
+            response.raise_for_status()
+            payload = await response.json()
+        except Exception:
+            self._register_agent_failure()
+            raise
+        self._reset_agent_failures()
+        return payload if isinstance(payload, dict) else {}
+
+    def _register_agent_failure(self) -> None:
+        self._agent_failures += 1
+        if self._agent_failures < AGENT_CIRCUIT_BREAKER_THRESHOLD:
+            return
+        reopen_at = monotonic() + AGENT_CIRCUIT_BREAKER_SECONDS
+        self._agent_circuit_open_until_monotonic = reopen_at
+        self._agent_circuit_open_until_iso = (
+            datetime.now(tz=UTC) + timedelta(seconds=AGENT_CIRCUIT_BREAKER_SECONDS)
+        ).isoformat()
+
+    def _reset_agent_failures(self) -> None:
+        self._agent_failures = 0
+        self._agent_circuit_open_until_monotonic = 0.0
+        self._agent_circuit_open_until_iso = None
+
+    async def _async_collect_local_mode_metrics(
+        self,
+        *,
+        contract: dict[str, Any],
+        targets: list[str] | Any,
+    ) -> tuple[float, float, bool, float, float, float, float]:
+        download = float(contract.get(CONF_DOWNLOAD_NORMAL, 0.0))
+        upload = float(contract.get(CONF_UPLOAD_NORMAL, 0.0))
+        fallback_probe = await self._async_collect_local_probe_metrics(
+            targets,
+            total_timeout=LOCAL_RUNNER_TOTAL_TIMEOUT_SECONDS,
+        )
+        return (
+            download,
+            upload,
+            bool(fallback_probe["online"]),
+            float(fallback_probe["ping"]),
+            float(fallback_probe["jitter"]),
+            float(fallback_probe["packet_loss"]),
+            float(fallback_probe["availability"]),
+        )
+
     def diagnostic_state(self) -> str:
         """Return debug state for diagnostics sensor."""
         now = datetime.now(tz=UTC)
+        mode = self._resolve_agent_mode(self.entry.options)
         if not self.last_update_success:
             return "error"
-        if not self.entry.options.get(CONF_AGENT_URL):
+        if mode == AGENT_MODE_FALLBACK:
+            return "warning"
+        if mode in (AGENT_MODE_ADDON, AGENT_MODE_EXTERNAL_AGENT) and not self._resolve_agent_url(
+            options=self.entry.options,
+            mode=mode,
+        ):
             return "warning"
         if self._is_data_stale(now=now):
             return "warning"
@@ -275,10 +397,15 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Return checklist-oriented debug details."""
         now = datetime.now(tz=UTC)
         tests = self.data.get("tests", {}) if isinstance(self.data, dict) else {}
+        mode = self._resolve_agent_mode(self.entry.options)
+        agent_url = self._resolve_agent_url(options=self.entry.options, mode=mode)
         checklist = self._build_diagnostic_checklist(now=now, tests=tests)
         return {
-            "agent_url_configured": bool(self.entry.options.get(CONF_AGENT_URL)),
-            "agent_url": self.entry.options.get(CONF_AGENT_URL) or None,
+            "agent_mode": mode,
+            "agent_url_configured": bool(agent_url),
+            "agent_url": agent_url or None,
+            "agent_token_configured": bool(str(self.entry.options.get(CONF_AGENT_TOKEN, "")).strip()),
+            "agent_circuit_open_until": self._agent_circuit_open_until_iso,
             "coordinator_last_update_success": self.last_update_success,
             "coordinator_update_interval_seconds": int(self.update_interval.total_seconds()),
             "last_success_at": self._last_success_at,
@@ -304,6 +431,12 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ),
                 "status": int(self.entry.options.get(CONF_STATUS_INTERVAL, DEFAULT_STATUS_INTERVAL)),
             },
+            "local_runner_limits": {
+                "total_timeout_seconds": LOCAL_RUNNER_TOTAL_TIMEOUT_SECONDS,
+                "max_parallel_probes": LOCAL_RUNNER_MAX_PARALLEL_PROBES,
+                "connect_timeout_seconds": FALLBACK_CONNECT_TIMEOUT_SECONDS,
+                "connect_probe_attempts": FALLBACK_CONNECT_PROBE_ATTEMPTS,
+            },
             "diagnostic_checklist": checklist,
         }
 
@@ -324,6 +457,20 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         tests: dict[str, dict[str, str | None]],
     ) -> list[dict[str, str]]:
         is_stale = self._is_data_stale(now=now)
+        mode = self._resolve_agent_mode(self.entry.options)
+        agent_url = self._resolve_agent_url(options=self.entry.options, mode=mode)
+        if mode == AGENT_MODE_FALLBACK:
+            mode_status = "warning"
+            mode_detail = "Fallback mode active (light local reachability probes only)"
+        elif mode == AGENT_MODE_LOCAL_RUNNER:
+            mode_status = "ok"
+            mode_detail = "Local runner mode active (light local probe runner enabled)"
+        elif agent_url:
+            mode_status = "ok"
+            mode_detail = f"Agent mode '{mode}' active with configured endpoint"
+        else:
+            mode_status = "warning"
+            mode_detail = f"Agent mode '{mode}' selected but no endpoint configured"
         checklist: list[dict[str, str]] = [
             {
                 "id": "coordinator_refresh",
@@ -336,12 +483,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             },
             {
                 "id": "agent_configuration",
-                "status": "ok" if self.entry.options.get(CONF_AGENT_URL) else "warning",
-                "detail": (
-                    "Agent URL configured"
-                    if self.entry.options.get(CONF_AGENT_URL)
-                    else "No agent URL configured, using local fallback values"
-                ),
+                "status": mode_status,
+                "detail": mode_detail,
             },
             {
                 "id": "sample_freshness",
@@ -365,6 +508,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if isinstance(details, dict)
                 else None
             )
+            reason = str(details.get("reason", "")).strip() if isinstance(details, dict) else ""
             checklist.append(
                 {
                     "id": f"{test_name}_last_run",
@@ -372,7 +516,19 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "detail": (
                         f"Last run at {last_run.isoformat()}"
                         if last_run
-                        else f"No valid last_run_at for {test_name} test"
+                        else (
+                            "Skipped: no agent endpoint configured"
+                            if reason in ("agent_url_not_configured", "agent_endpoint_not_configured")
+                            else (
+                                "Skipped: fallback mode active"
+                                if reason == "fallback_mode_active"
+                                else (
+                                    "Skipped: local runner mode active"
+                                    if reason == "local_runner_mode_active"
+                                    else f"No valid last_run_at for {test_name} test"
+                                )
+                            )
+                        )
                     ),
                 }
             )
@@ -408,26 +564,40 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ]
         return [ServiceStatus(name=name, reachable=online, detail="not_configured") for name in services]
 
-    def _build_default_test_runs(self, now: datetime) -> dict[str, dict[str, str | None]]:
+    def _build_default_test_runs(
+        self, now: datetime, agent_mode: str
+    ) -> dict[str, dict[str, str | None]]:
         """Provide fallback test metadata when no agent endpoint is configured."""
         timestamp = now.isoformat()
+        reason = (
+            "local_runner_mode_active"
+            if agent_mode == AGENT_MODE_LOCAL_RUNNER
+            else "fallback_mode_active"
+        )
         return {
             "ping": {"last_run_at": timestamp},
             "traceroute": {"last_run_at": timestamp},
             "status": {"last_run_at": timestamp},
             "download": {
-                "last_run_at": timestamp,
-                "last_started_at": timestamp,
-                "last_finished_at": timestamp,
+                "last_run_at": None,
+                "last_started_at": None,
+                "last_finished_at": None,
+                "reason": reason,
             },
             "upload": {
-                "last_run_at": timestamp,
-                "last_started_at": timestamp,
-                "last_finished_at": timestamp,
+                "last_run_at": None,
+                "last_started_at": None,
+                "last_finished_at": None,
+                "reason": reason,
             },
         }
 
-    async def _async_collect_local_probe_metrics(self, targets: list[str] | Any) -> dict[str, float | bool]:
+    async def _async_collect_local_probe_metrics(
+        self,
+        targets: list[str] | Any,
+        *,
+        total_timeout: float,
+    ) -> dict[str, float | bool]:
         """Measure local TCP connect latency as fallback when no agent URL is configured."""
         hosts = self._normalize_probe_targets(targets)
         if not hosts:
@@ -443,15 +613,34 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         failed = 0
         total = 0
         host_count = len(hosts)
+        semaphore = asyncio.Semaphore(LOCAL_RUNNER_MAX_PARALLEL_PROBES)
 
-        for probe_index in range(FALLBACK_CONNECT_PROBE_ATTEMPTS):
-            host = hosts[probe_index % host_count]
-            total += 1
-            latency = await self._async_measure_connect_latency_ms(host)
-            if latency is None:
+        async def _probe_once(host: str) -> float | None:
+            async with semaphore:
+                return await self._async_measure_connect_latency_ms(host)
+
+        tasks = [
+            asyncio.create_task(_probe_once(hosts[probe_index % host_count]))
+            for probe_index in range(FALLBACK_CONNECT_PROBE_ATTEMPTS)
+        ]
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=total_timeout,
+            )
+        except TimeoutError:
+            for task in tasks:
+                task.cancel()
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        total = len(results)
+        for result in results:
+            if isinstance(result, BaseException):
                 failed += 1
                 continue
-            latencies.append(latency)
+            if result is None:
+                failed += 1
+                continue
+            latencies.append(result)
 
         if not latencies:
             return {

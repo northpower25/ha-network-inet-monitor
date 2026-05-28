@@ -1,0 +1,38 @@
+name: Network Quality Agent
+version: "0.1.0"
+slug: network_quality_agent
+description: Lightweight local metrics agent for Network Quality integration
+url: "https://github.com/northpower25/ha-network-inet-monitor"
+startup: services
+boot: auto
+init: false
+host_network: true
+ports:
+  8099/tcp: 8099
+ports_description:
+  8099/tcp: Metrics and health endpoint
+arch:
+  - aarch64
+  - amd64
+  - armv7
+  - i386
+options:
+  bind_host: "0.0.0.0"
+  bind_port: 8099
+  interval_seconds: 60
+  connect_timeout_seconds: 3
+  probe_attempts: 3
+  targets:
+    - "1.1.1.1"
+    - "8.8.8.8"
+    - "9.9.9.9"
+  token: ""
+schema:
+  bind_host: str
+  bind_port: port
+  interval_seconds: int(10,86400)
+  connect_timeout_seconds: float(0.5,30)
+  probe_attempts: int(1,10)
+  targets:
+    - str
+  token: str?

@@ -293,6 +293,17 @@ function formatDateInput(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return "Unknown";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Unknown";
+  }
+  return parsed.toLocaleString();
+}
+
 class NetworkQualityPanel extends HTMLElement {
   constructor() {
     super();
@@ -597,6 +608,7 @@ class NetworkQualityPanel extends HTMLElement {
             <div class="service-row"><span>Availability</span><strong>${escapeHtml(formatNumber(service.availability_ratio))}%</strong></div>
             <div class="service-row"><span>Detected outages</span><strong>${escapeHtml(formatNumber(service.outages))}</strong></div>
             <div class="service-row"><span>Samples</span><strong>${escapeHtml(formatNumber(service.samples))}</strong></div>
+            <div class="service-row"><span>Last check</span><strong>${escapeHtml(formatDateTime(service.last_checked_at))}</strong></div>
             <div class="muted" style="margin-top: 10px;">${escapeHtml(service.current_detail || "No detail available")}</div>
           </div>
         `).join("")}
