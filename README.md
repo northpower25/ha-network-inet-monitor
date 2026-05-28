@@ -63,6 +63,7 @@ Es gibt zwei Betriebsarten:
 1. **Mit Agent (`agent_url` gesetzt)**
    - Abruf von `.../metrics`
    - Übernahme von Download, Upload, Ping, Jitter, Paketverlust, Verfügbarkeit, Online-Status
+   - Optional methodenspezifische Übernahme für Ookla/Fast.com/iPerf3/HTTP-Download aus `methods` oder kompatiblen Feldern im Agent-Payload
    - Übernahme von Testlauf-Metadaten (z. B. letzte Läufe, aktive Tests)
 
 2. **Ohne Agent (`agent_url` leer)**
@@ -98,6 +99,12 @@ Zusätzlich werden Rolling-Aggregate (Durchschnitt, Min, Max) über den internen
 
 - `internet_download`
 - `internet_upload`
+- `download_speed_ookla`
+- `upload_speed_ookla`
+- `download_speed_fast`
+- `bandwidth_iperf_download`
+- `bandwidth_iperf_upload`
+- `download_http_test`
 - `ping_public`
 - `packet_loss`
 - `jitter`

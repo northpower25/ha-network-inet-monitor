@@ -232,6 +232,24 @@
       "internet_upload": {
         "name": "Internet upload"
       },
+      "download_speed_ookla": {
+        "name": "Ookla download"
+      },
+      "upload_speed_ookla": {
+        "name": "Ookla upload"
+      },
+      "download_speed_fast": {
+        "name": "Fast.com download"
+      },
+      "bandwidth_iperf_download": {
+        "name": "iPerf3 download bandwidth"
+      },
+      "bandwidth_iperf_upload": {
+        "name": "iPerf3 upload bandwidth"
+      },
+      "download_http_test": {
+        "name": "HTTP download test"
+      },
       "ping_public": {
         "name": "Public ping"
       },
