@@ -227,9 +227,10 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def diagnostic_state(self) -> str:
         """Return debug state for diagnostics sensor."""
+        now = datetime.now(tz=UTC)
         if not self.last_update_success:
             return "error"
-        if self._is_data_stale():
+        if self._is_data_stale(now=now):
             return "warning"
         return "ok"
 
@@ -269,14 +270,14 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "diagnostic_checklist": checklist,
         }
 
-    def _is_data_stale(self) -> bool:
+    def _is_data_stale(self, *, now: datetime) -> bool:
         if not isinstance(self.data, dict):
             return True
         timestamp = self._safe_parse_iso(self.data.get("timestamp"))
         if timestamp is None:
             return True
         stale_after = self.update_interval.total_seconds() * DIAGNOSTIC_STALE_FACTOR
-        age_seconds = (datetime.now(tz=UTC) - timestamp).total_seconds()
+        age_seconds = (now - timestamp).total_seconds()
         return age_seconds > stale_after
 
     def _build_diagnostic_checklist(
@@ -285,6 +286,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         now: datetime,
         tests: dict[str, dict[str, str | None]],
     ) -> list[dict[str, str]]:
+        is_stale = self._is_data_stale(now=now)
         checklist: list[dict[str, str]] = [
             {
                 "id": "coordinator_refresh",
@@ -306,16 +308,16 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             },
             {
                 "id": "sample_freshness",
-                "status": "warning" if self._is_data_stale() else "ok",
+                "status": "warning" if is_stale else "ok",
                 "detail": (
                     "Latest sample appears stale"
-                    if self._is_data_stale()
+                    if is_stale
                     else "Latest sample age is within expected interval"
                 ),
             },
         ]
         for test_name in ("ping", "traceroute", "download", "upload", "status"):
-            details = tests.get(test_name, {}) if isinstance(tests, dict) else {}
+            details = tests.get(test_name, {})
             last_run = (
                 self._safe_parse_iso(details.get("last_run_at"))
                 if isinstance(details, dict)
@@ -345,7 +347,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _safe_parse_iso(self, value: str | None) -> datetime | None:
         try:
             return parse_iso_datetime(value)
-        except ValueError:
+        except (TypeError, ValueError):
             return None
 
     def _is_online_from_metrics(self, download_mbps: float, ping_ms: float) -> bool:
