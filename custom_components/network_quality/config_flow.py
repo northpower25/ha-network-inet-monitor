@@ -51,7 +51,12 @@ ROUTER_TYPES = ["fritzbox", "openwrt", "unifi", "other"]
 
 
 def _parse_targets(targets_input: str) -> list[str]:
-    """Parse a comma- or newline-separated list of test targets."""
+    """Parse a comma- or newline-separated list of test targets.
+
+    Both separators are accepted so that existing configs stored with
+    newline-separated values (from before the comma format was introduced)
+    continue to work correctly.
+    """
     normalized = targets_input.replace(",", "\n")
     return [t.strip() for t in normalized.splitlines() if t.strip()]
 
@@ -69,12 +74,9 @@ def _is_valid_target(target: str) -> bool:
         return True
     except ValueError:
         pass
-    try:
-        parsed = urlparse(target)
-        if parsed.scheme in ("http", "https") and parsed.netloc:
-            return True
-    except Exception:  # noqa: BLE001
-        pass
+    parsed = urlparse(target)
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        return True
     return bool(_HOSTNAME_RE.match(target))
 
 
