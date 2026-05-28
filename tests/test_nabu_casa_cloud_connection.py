@@ -101,7 +101,7 @@ def _load_coordinator_module() -> types.ModuleType:
 def test_nabu_casa_cloud_connection_reflects_online_state() -> None:
     """Nabu Casa cloud service should mirror online connectivity state."""
     coordinator_module = _load_coordinator_module()
-    coordinator = object.__new__(coordinator_module.NetworkQualityCoordinator)
+    coordinator = object()
 
     online = coordinator_module.NetworkQualityCoordinator._build_service_statuses(
         coordinator,
