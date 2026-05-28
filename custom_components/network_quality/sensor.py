@@ -39,6 +39,42 @@ SENSOR_DESCRIPTIONS: tuple[NetworkQualitySensorDescription, ...] = (
         value_fn=lambda data: data.get("sample", {}).get("upload"),
     ),
     NetworkQualitySensorDescription(
+        key="download_speed_ookla",
+        translation_key="download_speed_ookla",
+        native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
+        value_fn=lambda data: data.get("method_metrics", {}).get("ookla", {}).get("download"),
+    ),
+    NetworkQualitySensorDescription(
+        key="upload_speed_ookla",
+        translation_key="upload_speed_ookla",
+        native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
+        value_fn=lambda data: data.get("method_metrics", {}).get("ookla", {}).get("upload"),
+    ),
+    NetworkQualitySensorDescription(
+        key="download_speed_fast",
+        translation_key="download_speed_fast",
+        native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
+        value_fn=lambda data: data.get("method_metrics", {}).get("fast", {}).get("download"),
+    ),
+    NetworkQualitySensorDescription(
+        key="bandwidth_iperf_download",
+        translation_key="bandwidth_iperf_download",
+        native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
+        value_fn=lambda data: data.get("method_metrics", {}).get("iperf3", {}).get("download"),
+    ),
+    NetworkQualitySensorDescription(
+        key="bandwidth_iperf_upload",
+        translation_key="bandwidth_iperf_upload",
+        native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
+        value_fn=lambda data: data.get("method_metrics", {}).get("iperf3", {}).get("upload"),
+    ),
+    NetworkQualitySensorDescription(
+        key="download_http_test",
+        translation_key="download_http_test",
+        native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
+        value_fn=lambda data: data.get("method_metrics", {}).get("http_download", {}).get("download"),
+    ),
+    NetworkQualitySensorDescription(
         key="ping_public",
         translation_key="ping_public",
         device_class=SensorDeviceClass.DURATION,

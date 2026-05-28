@@ -6,6 +6,7 @@ import asyncio
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 import logging
+import math
 from statistics import mean
 from typing import Any
 
@@ -147,6 +148,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         online = False
         tests: dict[str, dict[str, str | None]] = {}
         active_test_events: list[str] = []
+        method_metrics: dict[str, dict[str, float]] = {}
 
         agent_url = options.get(CONF_AGENT_URL)
         services = options.get(CONF_SERVICE_STATUSES, [])
@@ -161,11 +163,37 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
                 response.raise_for_status()
                 payload = await response.json()
-                download = float(payload.get("download_mbps", 0.0))
-                upload = float(payload.get("upload_mbps", 0.0))
-                ping = float(payload.get("ping_ms", 0.0))
-                jitter = float(payload.get("jitter_ms", 0.0))
-                packet_loss = float(payload.get("packet_loss_percent", 0.0))
+                method_metrics = self._extract_method_metrics(payload)
+                download = self._first_float_value(
+                    payload.get("download_mbps"),
+                    payload.get("download"),
+                    method_metrics.get("ookla", {}).get("download"),
+                    method_metrics.get("iperf3", {}).get("download"),
+                    method_metrics.get("http_download", {}).get("download"),
+                    method_metrics.get("fast", {}).get("download"),
+                ) or 0.0
+                upload = self._first_float_value(
+                    payload.get("upload_mbps"),
+                    payload.get("upload"),
+                    method_metrics.get("ookla", {}).get("upload"),
+                    method_metrics.get("iperf3", {}).get("upload"),
+                ) or 0.0
+                ping = self._first_float_value(
+                    payload.get("ping_ms"),
+                    payload.get("ping"),
+                    method_metrics.get("ookla", {}).get("ping"),
+                ) or 0.0
+                jitter = self._first_float_value(
+                    payload.get("jitter_ms"),
+                    payload.get("jitter"),
+                    method_metrics.get("iperf3", {}).get("jitter"),
+                ) or 0.0
+                packet_loss = self._first_float_value(
+                    payload.get("packet_loss_percent"),
+                    payload.get("packet_loss"),
+                    method_metrics.get("ookla", {}).get("packet_loss"),
+                    method_metrics.get("iperf3", {}).get("packet_loss"),
+                ) or 0.0
                 availability = float(payload.get("availability_percent", 0.0))
                 online = bool(payload.get("online", self._is_online_from_metrics(download, ping)))
                 tests = self._extract_test_runs(payload)
@@ -227,6 +255,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "quality_class": self._quality_class(score),
             "tests": tests,
             "active_test_events": active_test_events,
+            "method_metrics": method_metrics,
             "rolling": self._rolling_aggregates(),
             "analysis": analysis,
         }
@@ -324,7 +353,12 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ),
             },
         ]
-        for test_name in ("ping", "traceroute", "download", "upload", "status"):
+        test_names = ["ping", "traceroute", "download", "upload", "status"]
+        if isinstance(tests, dict):
+            for key in sorted(tests):
+                if key not in test_names:
+                    test_names.append(key)
+        for test_name in test_names:
             details = tests.get(test_name, {})
             last_run = (
                 self._safe_parse_iso(details.get("last_run_at"))
@@ -505,6 +539,18 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         status_data = _source("status")
         download_data = _source("download")
         upload_data = _source("upload")
+        ookla_data = _source("ookla")
+        if not ookla_data:
+            ookla_data = _source("speedtest_ookla")
+        fast_data = _source("fast")
+        if not fast_data:
+            fast_data = _source("fast_com")
+        iperf_data = _source("iperf3")
+        if not iperf_data:
+            iperf_data = _source("iperf")
+        http_data = _source("http_download")
+        if not http_data:
+            http_data = _source("http")
 
         return {
             "ping": {
@@ -581,6 +627,42 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     payload.get("last_upload_test_finished_at"),
                 ),
             },
+            "ookla_speedtest": {
+                "last_run_at": _pick(
+                    ookla_data.get("last_run_at"),
+                    ookla_data.get("last_run"),
+                    payload.get("last_ookla_test_at"),
+                    payload.get("ookla_last_run_at"),
+                    payload.get("last_speedtest_at"),
+                    payload.get("speedtest_last_run_at"),
+                )
+            },
+            "fast_speedtest": {
+                "last_run_at": _pick(
+                    fast_data.get("last_run_at"),
+                    fast_data.get("last_run"),
+                    payload.get("last_fast_test_at"),
+                    payload.get("fast_last_run_at"),
+                )
+            },
+            "iperf3": {
+                "last_run_at": _pick(
+                    iperf_data.get("last_run_at"),
+                    iperf_data.get("last_run"),
+                    payload.get("last_iperf3_test_at"),
+                    payload.get("iperf3_last_run_at"),
+                    payload.get("last_iperf_test_at"),
+                    payload.get("iperf_last_run_at"),
+                )
+            },
+            "http_download": {
+                "last_run_at": _pick(
+                    http_data.get("last_run_at"),
+                    http_data.get("last_run"),
+                    payload.get("last_http_download_test_at"),
+                    payload.get("http_download_last_run_at"),
+                )
+            },
         }
 
     def _extract_active_test_events(
@@ -638,6 +720,119 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if parsed is None:
             return None
         return parsed.astimezone(UTC).isoformat()
+
+    def _extract_method_metrics(self, payload: dict[str, Any]) -> dict[str, dict[str, float]]:
+        """Extract optional per-method measurement values from agent payload."""
+        methods_payload = payload.get("methods", {})
+
+        def _source(*names: str) -> dict[str, Any]:
+            merged: dict[str, Any] = {}
+            for name in names:
+                direct = payload.get(name, {})
+                method = methods_payload.get(name, {}) if isinstance(methods_payload, dict) else {}
+                if isinstance(direct, dict):
+                    merged.update(direct)
+                if isinstance(method, dict):
+                    merged.update(method)
+            return merged
+
+        ookla = _source("ookla", "speedtest_ookla", "speedtest")
+        fast = _source("fast", "fast_com", "fastcom")
+        iperf = _source("iperf3", "iperf")
+        http_download = _source("http_download", "http", "download_http")
+
+        values: dict[str, dict[str, float]] = {
+            "ookla": {
+                "download": self._first_float_value(
+                    ookla.get("download_mbps"),
+                    ookla.get("download"),
+                    payload.get("ookla_download_mbps"),
+                ),
+                "upload": self._first_float_value(
+                    ookla.get("upload_mbps"),
+                    ookla.get("upload"),
+                    payload.get("ookla_upload_mbps"),
+                ),
+                "ping": self._first_float_value(
+                    ookla.get("ping_ms"),
+                    ookla.get("ping"),
+                    payload.get("ookla_ping_ms"),
+                ),
+                "packet_loss": self._first_float_value(
+                    ookla.get("packet_loss_percent"),
+                    ookla.get("packet_loss"),
+                    payload.get("ookla_packet_loss_percent"),
+                ),
+            },
+            "fast": {
+                "download": self._first_float_value(
+                    fast.get("download_mbps"),
+                    fast.get("download"),
+                    payload.get("fast_download_mbps"),
+                )
+            },
+            "iperf3": {
+                "download": self._first_float_value(
+                    iperf.get("download_mbps"),
+                    iperf.get("download"),
+                    payload.get("iperf3_download_mbps"),
+                    payload.get("iperf_download_mbps"),
+                ),
+                "upload": self._first_float_value(
+                    iperf.get("upload_mbps"),
+                    iperf.get("upload"),
+                    payload.get("iperf3_upload_mbps"),
+                    payload.get("iperf_upload_mbps"),
+                ),
+                "jitter": self._first_float_value(
+                    iperf.get("jitter_ms"),
+                    iperf.get("jitter"),
+                    payload.get("iperf3_jitter_ms"),
+                    payload.get("iperf_jitter_ms"),
+                ),
+                "packet_loss": self._first_float_value(
+                    iperf.get("packet_loss_percent"),
+                    iperf.get("packet_loss"),
+                    payload.get("iperf3_packet_loss_percent"),
+                    payload.get("iperf_packet_loss_percent"),
+                ),
+            },
+            "http_download": {
+                "download": self._first_float_value(
+                    http_download.get("download_mbps"),
+                    http_download.get("download"),
+                    payload.get("http_download_mbps"),
+                )
+            },
+        }
+        cleaned: dict[str, dict[str, float]] = {}
+        for method_name, metrics in values.items():
+            normalized_metrics = {
+                metric_name: value
+                for metric_name, value in metrics.items()
+                if value is not None
+            }
+            if normalized_metrics:
+                cleaned[method_name] = normalized_metrics
+        return cleaned
+
+    def _first_float_value(self, *values: Any) -> float | None:
+        for value in values:
+            parsed = self._to_float(value)
+            if parsed is not None:
+                return parsed
+        return None
+
+    def _to_float(self, value: Any) -> float | None:
+        if isinstance(value, bool):
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(parsed):
+            return None
+        return parsed
 
     def _resolve_refresh_interval(self, options: dict[str, Any]) -> int:
         speedtest_interval = int(options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL))

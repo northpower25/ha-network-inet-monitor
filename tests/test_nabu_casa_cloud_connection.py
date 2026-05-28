@@ -178,3 +178,64 @@ def test_normalize_probe_targets_skips_invalid_port_syntax() -> None:
     )
 
     assert hosts == ["8.8.8.8"]
+
+
+def test_extract_method_metrics_reads_ookla_fast_iperf_http_values() -> None:
+    """Method-specific metrics should be normalized from agent payloads."""
+    coordinator_module = _load_coordinator_module()
+
+    class CoordinatorStub:
+        """Lightweight stand-in with required helper methods."""
+
+        _first_float_value = coordinator_module.NetworkQualityCoordinator._first_float_value
+        _to_float = coordinator_module.NetworkQualityCoordinator._to_float
+
+    coordinator = CoordinatorStub()
+    method_metrics = coordinator_module.NetworkQualityCoordinator._extract_method_metrics(
+        coordinator,
+        {
+            "methods": {
+                "ookla": {"download_mbps": 222.2, "upload_mbps": 33.3, "ping_ms": 9.1},
+                "fast": {"download_mbps": 201.5},
+                "iperf3": {"download_mbps": 250.0, "upload_mbps": 60.0, "jitter_ms": 1.2},
+                "http_download": {"download_mbps": 190.0},
+            },
+            "ookla_packet_loss_percent": 0.2,
+            "iperf3_packet_loss_percent": 0.4,
+        },
+    )
+
+    assert method_metrics == {
+        "ookla": {"download": 222.2, "upload": 33.3, "ping": 9.1, "packet_loss": 0.2},
+        "fast": {"download": 201.5},
+        "iperf3": {"download": 250.0, "upload": 60.0, "jitter": 1.2, "packet_loss": 0.4},
+        "http_download": {"download": 190.0},
+    }
+
+
+def test_extract_test_runs_includes_method_specific_tests() -> None:
+    """Test metadata normalization should include new method-specific timestamps."""
+    coordinator_module = _load_coordinator_module()
+
+    class CoordinatorStub:
+        """Lightweight stand-in with required helper methods."""
+
+        _normalize_timestamp = coordinator_module.NetworkQualityCoordinator._normalize_timestamp
+
+    coordinator = CoordinatorStub()
+    tests = coordinator_module.NetworkQualityCoordinator._extract_test_runs(
+        coordinator,
+        {
+            "tests": {
+                "ookla": {"last_run_at": "2026-05-28T12:00:00+00:00"},
+                "fast": {"last_run_at": "2026-05-28T12:01:00+00:00"},
+                "iperf3": {"last_run_at": "2026-05-28T12:02:00+00:00"},
+                "http_download": {"last_run_at": "2026-05-28T12:03:00+00:00"},
+            }
+        },
+    )
+
+    assert tests["ookla_speedtest"]["last_run_at"] == "2026-05-28T12:00:00+00:00"
+    assert tests["fast_speedtest"]["last_run_at"] == "2026-05-28T12:01:00+00:00"
+    assert tests["iperf3"]["last_run_at"] == "2026-05-28T12:02:00+00:00"
+    assert tests["http_download"]["last_run_at"] == "2026-05-28T12:03:00+00:00"
