@@ -23,7 +23,7 @@
           "upload_test_interval": "Upload-Testintervall (Sekunden)",
           "status_interval": "Status-Intervall (Sekunden)",
           "external_opt_in": "Externe Statusprüfungen aktivieren",
-          "test_targets": "Testziele (eine Zeile pro Ziel, IP/FQDN/URL)",
+          "test_targets": "Testziele (kommagetrennt, IP/FQDN/URL)",
           "agent_url": "Lokale Agent-URL",
           "service_amazon": "Amazon",
           "service_google": "Google",
@@ -72,7 +72,7 @@
           "upload_test_interval": "Wie oft Upload-Tests ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "status_interval": "Wie oft Status-Checks ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "external_opt_in": "Aktiviert externe Dienstprüfungen. Quelle: deine Einwilligung im Configflow.",
-          "test_targets": "Ziele für Erreichbarkeitstests (eine Zeile je Ziel). Quelle: Benutzereingabe; ohne Eingabe werden Integration-Defaults genutzt.",
+          "test_targets": "Ziele für Erreichbarkeitstests, kommagetrennt (z. B. 1.1.1.1, 8.8.8.8, https://www.google.com). Ohne Eingabe werden die Standard-Testziele der Integration verwendet.",
           "agent_url": "Lokaler Mess-Agent-Endpunkt. Quelle: URL deines lokalen Agents (z. B. /metrics).",
           "service_amazon": "Schaltet die Überwachung dieses Dienstes ein/aus. Quelle: vordefinierter Dienstkatalog, Auswahl durch Benutzereingabe.",
           "service_google": "Schaltet die Überwachung dieses Dienstes ein/aus. Quelle: vordefinierter Dienstkatalog, Auswahl durch Benutzereingabe.",
@@ -107,7 +107,8 @@
     },
     "error": {
       "download_range": "Downloadwerte müssen min ≤ normal ≤ max erfüllen.",
-      "upload_range": "Uploadwerte müssen min ≤ normal ≤ max erfüllen."
+      "upload_range": "Uploadwerte müssen min ≤ normal ≤ max erfüllen.",
+      "invalid_test_targets": "Ungültige Testziele erkannt. Bitte nur gültige IP-Adressen, Hostnamen oder http(s)-URLs eingeben, kommagetrennt."
     },
     "abort": {
       "already_configured": "Dieser ISP ist bereits eingerichtet."
@@ -135,7 +136,7 @@
           "upload_test_interval": "Upload-Testintervall (Sekunden)",
           "status_interval": "Status-Intervall (Sekunden)",
           "external_opt_in": "Externe Statusprüfungen aktivieren",
-          "test_targets": "Testziele (eine Zeile pro Ziel, IP/FQDN/URL)",
+          "test_targets": "Testziele (kommagetrennt, IP/FQDN/URL)",
           "agent_url": "Lokale Agent-URL",
           "service_amazon": "Amazon",
           "service_google": "Google",
@@ -184,7 +185,7 @@
           "upload_test_interval": "Wie oft Upload-Tests ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "status_interval": "Wie oft Status-Checks ausgeführt werden. Quelle: von dir gesetztes Intervall (Sekunden).",
           "external_opt_in": "Aktiviert externe Dienstprüfungen. Quelle: deine Einwilligung im Configflow.",
-          "test_targets": "Ziele für Erreichbarkeitstests (eine Zeile je Ziel). Quelle: Benutzereingabe; ohne Eingabe werden Integration-Defaults genutzt.",
+          "test_targets": "Ziele für Erreichbarkeitstests, kommagetrennt (z. B. 1.1.1.1, 8.8.8.8, https://www.google.com). Ohne Eingabe werden die Standard-Testziele der Integration verwendet.",
           "agent_url": "Lokaler Mess-Agent-Endpunkt. Quelle: URL deines lokalen Agents (z. B. /metrics).",
           "service_amazon": "Schaltet die Überwachung dieses Dienstes ein/aus. Quelle: vordefinierter Dienstkatalog, Auswahl durch Benutzereingabe.",
           "service_google": "Schaltet die Überwachung dieses Dienstes ein/aus. Quelle: vordefinierter Dienstkatalog, Auswahl durch Benutzereingabe.",
@@ -216,6 +217,11 @@
           "service_gmx": "Schaltet die Überwachung dieses Dienstes ein/aus. Quelle: vordefinierter Dienstkatalog, Auswahl durch Benutzereingabe."
         }
       }
+    },
+    "error": {
+      "download_range": "Downloadwerte müssen min ≤ normal ≤ max erfüllen.",
+      "upload_range": "Uploadwerte müssen min ≤ normal ≤ max erfüllen.",
+      "invalid_test_targets": "Ungültige Testziele erkannt. Bitte nur gültige IP-Adressen, Hostnamen oder http(s)-URLs eingeben, kommagetrennt."
     }
   },
   "entity": {

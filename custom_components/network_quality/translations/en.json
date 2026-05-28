@@ -23,7 +23,7 @@
           "upload_test_interval": "Upload test interval (seconds)",
           "status_interval": "Status interval (seconds)",
           "external_opt_in": "Enable external status checks",
-          "test_targets": "Test targets (one per line, IP/FQDN/URL)",
+          "test_targets": "Test targets (comma-separated, IP/FQDN/URL)",
           "agent_url": "Local agent URL",
           "service_amazon": "Amazon",
           "service_google": "Google",
@@ -72,7 +72,7 @@
           "upload_test_interval": "How often upload tests are processed. Source: interval set by you (seconds).",
           "status_interval": "How often status checks run. Source: interval set by you (seconds).",
           "external_opt_in": "Enables external service checks. Source: your consent in the config flow.",
-          "test_targets": "Targets for reachability tests (one per line). Source: user input; integration defaults are used when empty.",
+          "test_targets": "Targets for reachability tests, comma-separated (e.g. 1.1.1.1, 8.8.8.8, https://www.google.com). Integration defaults are used when left empty.",
           "agent_url": "Local measurement agent endpoint. Source: URL of your local agent (e.g. /metrics).",
           "service_amazon": "Enables/disables monitoring for this service. Source: predefined service catalog, selected by user input.",
           "service_google": "Enables/disables monitoring for this service. Source: predefined service catalog, selected by user input.",
@@ -107,7 +107,8 @@
     },
     "error": {
       "download_range": "Download values must satisfy min ≤ normal ≤ max.",
-      "upload_range": "Upload values must satisfy min ≤ normal ≤ max."
+      "upload_range": "Upload values must satisfy min ≤ normal ≤ max.",
+      "invalid_test_targets": "Invalid test targets detected. Please enter only valid IP addresses, hostnames, or http(s) URLs, comma-separated."
     },
     "abort": {
       "already_configured": "This ISP is already configured."
@@ -135,7 +136,7 @@
           "upload_test_interval": "Upload test interval (seconds)",
           "status_interval": "Status interval (seconds)",
           "external_opt_in": "Enable external status checks",
-          "test_targets": "Test targets (one per line, IP/FQDN/URL)",
+          "test_targets": "Test targets (comma-separated, IP/FQDN/URL)",
           "agent_url": "Local agent URL",
           "service_amazon": "Amazon",
           "service_google": "Google",
@@ -184,7 +185,7 @@
           "upload_test_interval": "How often upload tests are processed. Source: interval set by you (seconds).",
           "status_interval": "How often status checks run. Source: interval set by you (seconds).",
           "external_opt_in": "Enables external service checks. Source: your consent in the config flow.",
-          "test_targets": "Targets for reachability tests (one per line). Source: user input; integration defaults are used when empty.",
+          "test_targets": "Targets for reachability tests, comma-separated (e.g. 1.1.1.1, 8.8.8.8, https://www.google.com). Integration defaults are used when left empty.",
           "agent_url": "Local measurement agent endpoint. Source: URL of your local agent (e.g. /metrics).",
           "service_amazon": "Enables/disables monitoring for this service. Source: predefined service catalog, selected by user input.",
           "service_google": "Enables/disables monitoring for this service. Source: predefined service catalog, selected by user input.",
@@ -216,6 +217,11 @@
           "service_gmx": "Enables/disables monitoring for this service. Source: predefined service catalog, selected by user input."
         }
       }
+    },
+    "error": {
+      "download_range": "Download values must satisfy min ≤ normal ≤ max.",
+      "upload_range": "Upload values must satisfy min ≤ normal ≤ max.",
+      "invalid_test_targets": "Invalid test targets detected. Please enter only valid IP addresses, hostnames, or http(s) URLs, comma-separated."
     }
   },
   "entity": {

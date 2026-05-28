@@ -38,7 +38,7 @@ DEFAULT_TEST_TARGETS = [
     "1.1.1.1",
     "8.8.8.8",
     "9.9.9.9",
-    "https://example.com",
+    "https://www.google.com",
 ]
 
 AVAILABLE_SERVICE_CATALOG = [
