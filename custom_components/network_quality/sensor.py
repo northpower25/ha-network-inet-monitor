@@ -83,7 +83,7 @@ SENSOR_DESCRIPTIONS: tuple[NetworkQualitySensorDescription, ...] = (
     NetworkQualitySensorDescription(
         key="debug_status",
         translation_key="debug_status",
-        value_fn=lambda data: data.get("timestamp"),
+        value_fn=lambda data: None,
     ),
 )
 

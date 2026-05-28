@@ -207,6 +207,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         analysis = compute_analysis_overview(self._history, now=now)
 
         self._last_success_at = now.isoformat()
+        self._last_error_at = None
         self._last_error_message = None
         self._last_error_type = None
         return {
