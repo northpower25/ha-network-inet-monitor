@@ -246,6 +246,9 @@
       },
       "quality_class": {
         "name": "Qualitätsklasse"
+      },
+      "debug_status": {
+        "name": "Diagnose-Status"
       }
     },
     "binary_sensor": {

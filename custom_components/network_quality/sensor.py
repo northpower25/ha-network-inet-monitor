@@ -80,6 +80,11 @@ SENSOR_DESCRIPTIONS: tuple[NetworkQualitySensorDescription, ...] = (
         translation_key="quality_class",
         value_fn=lambda data: data.get("quality_class"),
     ),
+    NetworkQualitySensorDescription(
+        key="debug_status",
+        translation_key="debug_status",
+        value_fn=lambda data: None,
+    ),
 )
 
 
@@ -119,9 +124,18 @@ class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], Restore
     @property
     def native_value(self) -> Any:
         """Return sensor value."""
+        if self.entity_description.key == "debug_status":
+            return self.coordinator.diagnostic_state()
         if not self.coordinator.data:
             return self._attr_native_value
         return self.entity_description.value_fn(self.coordinator.data)
+
+    @property
+    def available(self) -> bool:
+        """Return availability."""
+        if self.entity_description.key == "debug_status":
+            return True
+        return super().available
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -152,5 +166,8 @@ class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], Restore
                 "anomaly_state": analysis.get("anomaly_state"),
                 "recurring_patterns": analysis.get("recurring_patterns", []),
             }
+
+        if self.entity_description.key == "debug_status":
+            return self.coordinator.diagnostic_attributes()
 
         return None

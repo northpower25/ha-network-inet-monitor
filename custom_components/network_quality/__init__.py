@@ -48,6 +48,7 @@ _SUPPORTED_SENSOR_KEYS = {
     "contract_ratio",
     "quality_score",
     "quality_class",
+    "debug_status",
 }
 _SUPPORTED_BINARY_KEYS = {"internet_online"}
 _PANEL_VERSION = "5"

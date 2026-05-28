@@ -74,6 +74,8 @@ QUALITY_CLASS_A_THRESHOLD = 90.0
 QUALITY_CLASS_B_THRESHOLD = 75.0
 QUALITY_CLASS_C_THRESHOLD = 60.0
 QUALITY_CLASS_D_THRESHOLD = 40.0
+MAX_REASONABLE_FUTURE_DAYS = 3650
+DIAGNOSTIC_STALE_FACTOR = 2.0
 
 
 @dataclass(slots=True)
@@ -94,18 +96,11 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._samples: list[dict[str, float]] = []
         self._history: list[dict[str, Any]] = []
         self._store = Store[dict[str, Any]](hass, STORE_VERSION, f"{DOMAIN}_{entry.entry_id}_history")
-
-        speedtest_interval = int(entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL))
-        download_interval = int(entry.options.get(CONF_DOWNLOAD_TEST_INTERVAL, speedtest_interval))
-        upload_interval = int(entry.options.get(CONF_UPLOAD_TEST_INTERVAL, speedtest_interval))
-        refresh_interval = min(
-            speedtest_interval,
-            int(entry.options.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL)),
-            int(entry.options.get(CONF_TRACEROUTE_INTERVAL, DEFAULT_TRACEROUTE_INTERVAL)),
-            download_interval,
-            upload_interval,
-            int(entry.options.get(CONF_STATUS_INTERVAL, DEFAULT_STATUS_INTERVAL)),
-        )
+        self._last_success_at: str | None = None
+        self._last_error_at: str | None = None
+        self._last_error_message: str | None = None
+        self._last_error_type: str | None = None
+        refresh_interval = self._resolve_refresh_interval(entry.options)
         super().__init__(
             hass,
             _LOGGER,
@@ -133,6 +128,9 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Update and normalize data."""
         now = datetime.now(tz=UTC)
         options = self.entry.options
+        self.update_interval = timedelta(
+            seconds=max(MIN_UPDATE_INTERVAL_SECONDS, self._resolve_refresh_interval(options))
+        )
         contract = self.entry.data
 
         download = 0.0
@@ -178,6 +176,9 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 tests = self._build_default_test_runs(now)
                 active_test_events = []
         except Exception as err:
+            self._last_error_at = now.isoformat()
+            self._last_error_message = str(err)
+            self._last_error_type = type(err).__name__
             raise UpdateFailed(f"Failed to update from agent endpoint: {err}") from err
 
         sample = {
@@ -205,6 +206,10 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._async_persist_sample(stored_sample)
         analysis = compute_analysis_overview(self._history, now=now)
 
+        self._last_success_at = now.isoformat()
+        self._last_error_at = None
+        self._last_error_message = None
+        self._last_error_type = None
         return {
             "timestamp": now.isoformat(),
             "sample": sample,
@@ -219,6 +224,131 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "rolling": self._rolling_aggregates(),
             "analysis": analysis,
         }
+
+    def diagnostic_state(self) -> str:
+        """Return debug state for diagnostics sensor."""
+        now = datetime.now(tz=UTC)
+        if not self.last_update_success:
+            return "error"
+        if self._is_data_stale(now=now):
+            return "warning"
+        return "ok"
+
+    def diagnostic_attributes(self) -> dict[str, Any]:
+        """Return checklist-oriented debug details."""
+        now = datetime.now(tz=UTC)
+        tests = self.data.get("tests", {}) if isinstance(self.data, dict) else {}
+        checklist = self._build_diagnostic_checklist(now=now, tests=tests)
+        return {
+            "agent_url_configured": bool(self.entry.options.get(CONF_AGENT_URL)),
+            "agent_url": self.entry.options.get(CONF_AGENT_URL) or None,
+            "coordinator_last_update_success": self.last_update_success,
+            "coordinator_update_interval_seconds": int(self.update_interval.total_seconds()),
+            "last_success_at": self._last_success_at,
+            "last_error_at": self._last_error_at,
+            "last_error_type": self._last_error_type,
+            "last_error_message": self._last_error_message,
+            "configured_intervals": {
+                "ping": int(self.entry.options.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL)),
+                "traceroute": int(
+                    self.entry.options.get(CONF_TRACEROUTE_INTERVAL, DEFAULT_TRACEROUTE_INTERVAL)
+                ),
+                "download": int(
+                    self.entry.options.get(
+                        CONF_DOWNLOAD_TEST_INTERVAL,
+                        self.entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL),
+                    )
+                ),
+                "upload": int(
+                    self.entry.options.get(
+                        CONF_UPLOAD_TEST_INTERVAL,
+                        self.entry.options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL),
+                    )
+                ),
+                "status": int(self.entry.options.get(CONF_STATUS_INTERVAL, DEFAULT_STATUS_INTERVAL)),
+            },
+            "diagnostic_checklist": checklist,
+        }
+
+    def _is_data_stale(self, *, now: datetime) -> bool:
+        if not isinstance(self.data, dict):
+            return True
+        timestamp = self._safe_parse_iso(self.data.get("timestamp"))
+        if timestamp is None:
+            return True
+        stale_after = self.update_interval.total_seconds() * DIAGNOSTIC_STALE_FACTOR
+        age_seconds = (now - timestamp).total_seconds()
+        return age_seconds > stale_after
+
+    def _build_diagnostic_checklist(
+        self,
+        *,
+        now: datetime,
+        tests: dict[str, dict[str, str | None]],
+    ) -> list[dict[str, str]]:
+        is_stale = self._is_data_stale(now=now)
+        checklist: list[dict[str, str]] = [
+            {
+                "id": "coordinator_refresh",
+                "status": "ok" if self.last_update_success else "error",
+                "detail": (
+                    "Coordinator refresh successful"
+                    if self.last_update_success
+                    else "Coordinator refresh failed"
+                ),
+            },
+            {
+                "id": "agent_configuration",
+                "status": "ok" if self.entry.options.get(CONF_AGENT_URL) else "warning",
+                "detail": (
+                    "Agent URL configured"
+                    if self.entry.options.get(CONF_AGENT_URL)
+                    else "No agent URL configured, using local fallback values"
+                ),
+            },
+            {
+                "id": "sample_freshness",
+                "status": "warning" if is_stale else "ok",
+                "detail": (
+                    "Latest sample appears stale"
+                    if is_stale
+                    else "Latest sample age is within expected interval"
+                ),
+            },
+        ]
+        for test_name in ("ping", "traceroute", "download", "upload", "status"):
+            details = tests.get(test_name, {})
+            last_run = (
+                self._safe_parse_iso(details.get("last_run_at"))
+                if isinstance(details, dict)
+                else None
+            )
+            checklist.append(
+                {
+                    "id": f"{test_name}_last_run",
+                    "status": "ok" if last_run else "warning",
+                    "detail": (
+                        f"Last run at {last_run.isoformat()}"
+                        if last_run
+                        else f"No valid last_run_at for {test_name} test"
+                    ),
+                }
+            )
+        if self._last_error_message:
+            checklist.append(
+                {
+                    "id": "last_error",
+                    "status": "error",
+                    "detail": f"{self._last_error_type or 'Error'}: {self._last_error_message}",
+                }
+            )
+        return checklist
+
+    def _safe_parse_iso(self, value: str | None) -> datetime | None:
+        try:
+            return parse_iso_datetime(value)
+        except (TypeError, ValueError):
+            return None
 
     def _is_online_from_metrics(self, download_mbps: float, ping_ms: float) -> bool:
         """Infer online state when agent payload does not provide an explicit flag."""
@@ -394,11 +524,40 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         parsed = None
         if isinstance(value, datetime):
             parsed = value if value.tzinfo else value.replace(tzinfo=UTC)
+        elif isinstance(value, (int, float)):
+            try:
+                unix_timestamp = float(value)
+                if unix_timestamp < 0:
+                    return None
+                max_reasonable_timestamp = (
+                    datetime.now(tz=UTC) + timedelta(days=MAX_REASONABLE_FUTURE_DAYS)
+                ).timestamp()
+                if unix_timestamp > max_reasonable_timestamp:
+                    return None
+                parsed = datetime.fromtimestamp(unix_timestamp, tz=UTC)
+            except (OverflowError, OSError, ValueError):
+                return None
         elif isinstance(value, str):
-            parsed = parse_iso_datetime(value)
+            try:
+                parsed = parse_iso_datetime(value)
+            except ValueError:
+                return None
         if parsed is None:
             return None
         return parsed.astimezone(UTC).isoformat()
+
+    def _resolve_refresh_interval(self, options: dict[str, Any]) -> int:
+        speedtest_interval = int(options.get(CONF_SPEEDTEST_INTERVAL, DEFAULT_SPEEDTEST_INTERVAL))
+        download_interval = int(options.get(CONF_DOWNLOAD_TEST_INTERVAL, speedtest_interval))
+        upload_interval = int(options.get(CONF_UPLOAD_TEST_INTERVAL, speedtest_interval))
+        return min(
+            speedtest_interval,
+            int(options.get(CONF_PING_INTERVAL, DEFAULT_PING_INTERVAL)),
+            int(options.get(CONF_TRACEROUTE_INTERVAL, DEFAULT_TRACEROUTE_INTERVAL)),
+            download_interval,
+            upload_interval,
+            int(options.get(CONF_STATUS_INTERVAL, DEFAULT_STATUS_INTERVAL)),
+        )
 
     def _rolling_aggregates(self) -> dict[str, float]:
         if not self._samples:
