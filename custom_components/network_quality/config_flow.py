@@ -10,7 +10,11 @@ from homeassistant.data_entry_flow import FlowResult
 import voluptuous as vol
 
 from .const import (
+    AGENT_MODE_EXTERNAL_AGENT,
+    AGENT_MODES,
     AVAILABLE_SERVICE_CATALOG,
+    CONF_AGENT_MODE,
+    CONF_AGENT_TOKEN,
     CONF_AGENT_URL,
     CONF_DASHBOARD_AUTO_EMITTED,
     CONF_DOWNLOAD_MAX,
@@ -32,8 +36,10 @@ from .const import (
     CONF_UPLOAD_MIN,
     CONF_UPLOAD_NORMAL,
     DEFAULT_AGENT_URL,
+    DEFAULT_AGENT_TOKEN,
     DEFAULT_DOWNLOAD_TEST_INTERVAL,
     DEFAULT_EXTERNAL_OPT_IN,
+    DEFAULT_AGENT_MODE,
     DEFAULT_PING_INTERVAL,
     DEFAULT_REGION,
     DEFAULT_SPEEDTEST_INTERVAL,
@@ -107,7 +113,9 @@ def _normalize_common_options(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_EXTERNAL_OPT_IN: user_input[CONF_EXTERNAL_OPT_IN],
         CONF_TEST_TARGETS: targets or DEFAULT_TEST_TARGETS,
         CONF_SERVICE_STATUSES: services or AVAILABLE_SERVICE_CATALOG,
+        CONF_AGENT_MODE: user_input.get(CONF_AGENT_MODE, DEFAULT_AGENT_MODE),
         CONF_AGENT_URL: user_input[CONF_AGENT_URL].strip(),
+        CONF_AGENT_TOKEN: user_input.get(CONF_AGENT_TOKEN, "").strip(),
         CONF_DASHBOARD_AUTO_EMITTED: user_input.get(CONF_DASHBOARD_AUTO_EMITTED, False),
     }
 
@@ -193,8 +201,21 @@ def _build_schema(
             default=", ".join(options_defaults.get(CONF_TEST_TARGETS, DEFAULT_TEST_TARGETS)),
         ): str,
         vol.Optional(
+            CONF_AGENT_MODE,
+            default=options_defaults.get(
+                CONF_AGENT_MODE,
+                AGENT_MODE_EXTERNAL_AGENT
+                if options_defaults.get(CONF_AGENT_URL)
+                else DEFAULT_AGENT_MODE,
+            ),
+        ): vol.In(AGENT_MODES),
+        vol.Optional(
             CONF_AGENT_URL,
             default=options_defaults.get(CONF_AGENT_URL, DEFAULT_AGENT_URL),
+        ): str,
+        vol.Optional(
+            CONF_AGENT_TOKEN,
+            default=options_defaults.get(CONF_AGENT_TOKEN, DEFAULT_AGENT_TOKEN),
         ): str,
     }
     for service in AVAILABLE_SERVICE_CATALOG:
@@ -223,7 +244,9 @@ class NetworkQualityConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_EXTERNAL_OPT_IN: DEFAULT_EXTERNAL_OPT_IN,
             CONF_TEST_TARGETS: DEFAULT_TEST_TARGETS,
             CONF_SERVICE_STATUSES: AVAILABLE_SERVICE_CATALOG,
+            CONF_AGENT_MODE: DEFAULT_AGENT_MODE,
             CONF_AGENT_URL: DEFAULT_AGENT_URL,
+            CONF_AGENT_TOKEN: DEFAULT_AGENT_TOKEN,
             CONF_DASHBOARD_AUTO_EMITTED: False,
         }
         errors: dict[str, str]
