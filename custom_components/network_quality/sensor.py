@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DATA_COORDINATOR, DOMAIN
 from .coordinator import NetworkQualityCoordinator
+from .entity import build_device_info
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -112,6 +113,7 @@ class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], Restore
         self.entity_description = description
         self._attr_unique_id = description.key
         self._attr_suggested_object_id = f"{DOMAIN}_{description.key}"
+        self._attr_has_entity_name = True
         self._attr_native_value = None
 
     async def async_added_to_hass(self) -> None:
@@ -171,3 +173,8 @@ class NetworkQualitySensor(CoordinatorEntity[NetworkQualityCoordinator], Restore
             return self.coordinator.diagnostic_attributes()
 
         return None
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        """Return device metadata so entities are grouped in one integration device."""
+        return build_device_info(self.coordinator.entry)

@@ -23,6 +23,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import NetworkQualityCoordinator
+from .entity import build_device_info
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -120,6 +121,7 @@ class NetworkQualityTestFrequencyNumber(CoordinatorEntity[NetworkQualityCoordina
         self.entity_description = description
         self._attr_unique_id = description.key
         self._attr_suggested_object_id = f"{DOMAIN}_{description.key}"
+        self._attr_has_entity_name = True
 
     @property
     def native_value(self) -> float:
@@ -162,3 +164,8 @@ class NetworkQualityTestFrequencyNumber(CoordinatorEntity[NetworkQualityCoordina
 
         self.hass.config_entries.async_update_entry(self._entry, options=options)
         await self.coordinator.async_request_refresh()
+
+    @property
+    def device_info(self) -> dict[str, object]:
+        """Return device metadata so entities are grouped in one integration device."""
+        return build_device_info(self._entry)
