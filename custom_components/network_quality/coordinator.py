@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 import logging
 from statistics import mean
 from typing import Any
-from urllib.parse import urlparse
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -46,6 +45,7 @@ from .const import (
     MIN_UPDATE_INTERVAL_SECONDS,
     UPDATE_TIMEOUT_SECONDS,
 )
+from .target_parser import parse_target_host_port
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -469,19 +469,10 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             candidate = value.strip()
             if not candidate:
                 continue
-            parsed = urlparse(candidate)
-            if parsed.hostname:
-                host = parsed.hostname
-            elif "://" in candidate:
+            parsed = parse_target_host_port(candidate)
+            if parsed is None:
                 continue
-            else:
-                target = candidate.split("/", 1)[0].strip()
-                if target.startswith("["):
-                    host = target.split("]", 1)[0].lstrip("[")
-                elif target.count(":") > 1:
-                    host = target
-                else:
-                    host = target.split(":", 1)[0]
+            host, _ = parsed
             host = host.strip("[]").strip()
             if host and host not in hosts:
                 hosts.append(host)

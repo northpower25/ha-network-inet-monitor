@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import ipaddress
-import re
 from typing import Any
-from urllib.parse import urlparse
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
@@ -46,6 +43,7 @@ from .const import (
     DEFAULT_UPLOAD_TEST_INTERVAL,
     DOMAIN,
 )
+from .target_parser import is_valid_target
 
 ROUTER_TYPES = ["fritzbox", "openwrt", "unifi", "other"]
 
@@ -61,23 +59,9 @@ def _parse_targets(targets_input: str) -> list[str]:
     return [t.strip() for t in normalized.splitlines() if t.strip()]
 
 
-_HOSTNAME_RE = re.compile(
-    r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*"
-    r"[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$"
-)
-
-
 def _is_valid_target(target: str) -> bool:
-    """Return True if target is a valid IPv4/IPv6 address, hostname, or http(s) URL."""
-    try:
-        ipaddress.ip_address(target)
-        return True
-    except ValueError:
-        pass
-    parsed = urlparse(target)
-    if parsed.scheme in ("http", "https") and parsed.netloc:
-        return True
-    return bool(_HOSTNAME_RE.match(target))
+    """Backward-compatible wrapper around shared target parser validation."""
+    return is_valid_target(target)
 
 
 def _validate_targets(targets: list[str]) -> dict[str, str]:

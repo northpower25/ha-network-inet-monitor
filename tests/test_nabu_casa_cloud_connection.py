@@ -125,3 +125,56 @@ def test_nabu_casa_cloud_connection_reflects_online_state() -> None:
     assert online[0].detail == "external_checks_disabled"
     assert offline[0].reachable is False
     assert offline[0].detail == "external_checks_disabled"
+
+
+def test_normalize_probe_targets_parses_ipv6_and_ports() -> None:
+    """Local probe target normalization should robustly extract hosts."""
+    coordinator_module = _load_coordinator_module()
+
+    class CoordinatorStub:
+        """Lightweight stand-in because _normalize_probe_targets is stateless."""
+
+    coordinator = CoordinatorStub()
+    hosts = coordinator_module.NetworkQualityCoordinator._normalize_probe_targets(
+        coordinator,
+        [
+            "https://[2001:db8::1]:8443/ping",
+            "[2001:db8::2]:9443",
+            "example.org:443",
+            "https://example.net:8443/status",
+            "2001:db8::3",
+            "[fe80::1%eth0]:443",
+            "https://[2001:db8::1]:8443/duplicate",
+        ],
+    )
+
+    assert hosts == [
+        "2001:db8::1",
+        "2001:db8::2",
+        "example.org",
+        "example.net",
+        "2001:db8::3",
+        "fe80::1%eth0",
+    ]
+
+
+def test_normalize_probe_targets_skips_invalid_port_syntax() -> None:
+    """Invalid host:port combinations should not be used for local probes."""
+    coordinator_module = _load_coordinator_module()
+
+    class CoordinatorStub:
+        """Lightweight stand-in because _normalize_probe_targets is stateless."""
+
+    coordinator = CoordinatorStub()
+    hosts = coordinator_module.NetworkQualityCoordinator._normalize_probe_targets(
+        coordinator,
+        [
+            "[2001:db8::4]:99999",
+            "https://[2001:db8::5]:bad",
+            "example.com:abc",
+            "[2001:db8::6]extra",
+            "8.8.8.8:53",
+        ],
+    )
+
+    assert hosts == ["8.8.8.8"]
