@@ -5,6 +5,7 @@ import contextlib
 from datetime import UTC, datetime
 import json
 from pathlib import Path
+import secrets
 from statistics import mean
 from typing import Any
 
@@ -122,8 +123,8 @@ class AgentState:
         started = asyncio.get_running_loop().time()
         writer = None
         try:
-            connection = asyncio.open_connection(host, CONNECT_PORT)
-            _, writer = await asyncio.wait_for(connection, timeout=timeout)
+            connection_coro = asyncio.open_connection(host, CONNECT_PORT)
+            _, writer = await asyncio.wait_for(connection_coro, timeout=timeout)
         except (OSError, TimeoutError):
             return None
         try:
@@ -131,8 +132,9 @@ class AgentState:
             return round(elapsed, 2)
         finally:
             if writer is not None:
-                writer.close()
-                await writer.wait_closed()
+                with contextlib.suppress(OSError):
+                    writer.close()
+                    await writer.wait_closed()
 
 
 async def metrics_handler(request: web.Request) -> web.Response:
@@ -141,7 +143,10 @@ async def metrics_handler(request: web.Request) -> web.Response:
     if token:
         header = request.headers.get("Authorization", "")
         prefix = "Bearer "
-        if not header.startswith(prefix) or header[len(prefix) :] != token:
+        if not header.startswith(prefix) or not secrets.compare_digest(
+            header[len(prefix) :],
+            token,
+        ):
             return web.json_response({"error": "unauthorized"}, status=401)
     return web.json_response(await state.get_metrics())
 
@@ -153,7 +158,8 @@ async def health_handler(_: web.Request) -> web.Response:
 async def update_loop(app: web.Application) -> None:
     state: AgentState = app["state"]
     while True:
-        await state.update_metrics()
+        with contextlib.suppress(Exception):
+            await state.update_metrics()
         await asyncio.sleep(int(state.options.get("interval_seconds", 60)))
 
 

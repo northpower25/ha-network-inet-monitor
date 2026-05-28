@@ -217,31 +217,27 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 tests = self._extract_test_runs(payload)
                 active_test_events = self._extract_active_test_events(payload, tests)
             elif agent_mode == AGENT_MODE_LOCAL_RUNNER:
-                download = float(contract.get(CONF_DOWNLOAD_NORMAL, 0.0))
-                upload = float(contract.get(CONF_UPLOAD_NORMAL, 0.0))
-                fallback_probe = await self._async_collect_local_probe_metrics(
-                    targets,
-                    total_timeout=LOCAL_RUNNER_TOTAL_TIMEOUT_SECONDS,
-                )
-                online = bool(fallback_probe["online"])
-                ping = float(fallback_probe["ping"])
-                jitter = float(fallback_probe["jitter"])
-                packet_loss = float(fallback_probe["packet_loss"])
-                availability = float(fallback_probe["availability"])
+                (
+                    download,
+                    upload,
+                    online,
+                    ping,
+                    jitter,
+                    packet_loss,
+                    availability,
+                ) = await self._async_collect_local_mode_metrics(contract=contract, targets=targets)
                 tests = self._build_default_test_runs(now, agent_mode)
                 active_test_events = []
             else:
-                download = float(contract.get(CONF_DOWNLOAD_NORMAL, 0.0))
-                upload = float(contract.get(CONF_UPLOAD_NORMAL, 0.0))
-                fallback_probe = await self._async_collect_local_probe_metrics(
-                    targets,
-                    total_timeout=LOCAL_RUNNER_TOTAL_TIMEOUT_SECONDS,
-                )
-                online = bool(fallback_probe["online"])
-                ping = float(fallback_probe["ping"])
-                jitter = float(fallback_probe["jitter"])
-                packet_loss = float(fallback_probe["packet_loss"])
-                availability = float(fallback_probe["availability"])
+                (
+                    download,
+                    upload,
+                    online,
+                    ping,
+                    jitter,
+                    packet_loss,
+                    availability,
+                ) = await self._async_collect_local_mode_metrics(contract=contract, targets=targets)
                 tests = self._build_default_test_runs(now, agent_mode)
                 active_test_events = []
         except Exception as err:
@@ -333,7 +329,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             response = await self._session.get(
                 f"{agent_url.rstrip('/')}/metrics",
                 timeout=UPDATE_TIMEOUT_SECONDS,
-                headers=headers or None,
+                headers=headers,
             )
             response.raise_for_status()
             payload = await response.json()
@@ -357,6 +353,28 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._agent_failures = 0
         self._agent_circuit_open_until_monotonic = 0.0
         self._agent_circuit_open_until_iso = None
+
+    async def _async_collect_local_mode_metrics(
+        self,
+        *,
+        contract: dict[str, Any],
+        targets: list[str] | Any,
+    ) -> tuple[float, float, bool, float, float, float, float]:
+        download = float(contract.get(CONF_DOWNLOAD_NORMAL, 0.0))
+        upload = float(contract.get(CONF_UPLOAD_NORMAL, 0.0))
+        fallback_probe = await self._async_collect_local_probe_metrics(
+            targets,
+            total_timeout=LOCAL_RUNNER_TOTAL_TIMEOUT_SECONDS,
+        )
+        return (
+            download,
+            upload,
+            bool(fallback_probe["online"]),
+            float(fallback_probe["ping"]),
+            float(fallback_probe["jitter"]),
+            float(fallback_probe["packet_loss"]),
+            float(fallback_probe["availability"]),
+        )
 
     def diagnostic_state(self) -> str:
         """Return debug state for diagnostics sensor."""
@@ -605,29 +623,24 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             asyncio.create_task(_probe_once(hosts[probe_index % host_count]))
             for probe_index in range(FALLBACK_CONNECT_PROBE_ATTEMPTS)
         ]
-        total = len(tasks)
         try:
-            done, pending = await asyncio.wait(tasks, timeout=total_timeout)
-        finally:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=total_timeout,
+            )
+        except TimeoutError:
             for task in tasks:
-                if task.done():
-                    continue
                 task.cancel()
-        for task in pending:
-            failed += 1
-        for task in done:
-            if task.cancelled():
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        total = len(results)
+        for result in results:
+            if isinstance(result, BaseException):
                 failed += 1
                 continue
-            try:
-                latency = task.result()
-            except Exception:
+            if result is None:
                 failed += 1
                 continue
-            if latency is None:
-                failed += 1
-                continue
-            latencies.append(latency)
+            latencies.append(result)
 
         if not latencies:
             return {
