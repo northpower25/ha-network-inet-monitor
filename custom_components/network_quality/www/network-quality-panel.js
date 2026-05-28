@@ -304,6 +304,14 @@ function formatDateTime(value) {
   return parsed.toLocaleString();
 }
 
+function formatServiceDetail(service) {
+  const detail = String(service?.current_detail ?? "").trim();
+  if (!detail || detail === "not_configured" || detail === "external_checks_disabled") {
+    return formatDateTime(service?.last_checked_at);
+  }
+  return detail;
+}
+
 class NetworkQualityPanel extends HTMLElement {
   constructor() {
     super();
@@ -609,7 +617,7 @@ class NetworkQualityPanel extends HTMLElement {
             <div class="service-row"><span>Detected outages</span><strong>${escapeHtml(formatNumber(service.outages))}</strong></div>
             <div class="service-row"><span>Samples</span><strong>${escapeHtml(formatNumber(service.samples))}</strong></div>
             <div class="service-row"><span>Last check</span><strong>${escapeHtml(formatDateTime(service.last_checked_at))}</strong></div>
-            <div class="muted" style="margin-top: 10px;">${escapeHtml(service.current_detail || "No detail available")}</div>
+            <div class="muted" style="margin-top: 10px;">${escapeHtml(formatServiceDetail(service))}</div>
           </div>
         `).join("")}
       </div>
