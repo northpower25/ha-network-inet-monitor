@@ -21,6 +21,29 @@ Home Assistant Custom Integration zur Überwachung der Internet- und Verbindungs
 7. Integration installieren.
 8. Home Assistant neu starten.
 
+## Installation des Home-Assistant-Add-ons
+
+Dieses Repository enthält zusätzlich das Add-on **Network Quality Agent**.
+
+### Add-on-Repository in Home Assistant hinzufügen
+
+1. **Einstellungen → Add-ons → Add-on Store** öffnen.
+2. Oben rechts auf die drei Punkte klicken → **Repositories**.
+3. Als Repository-URL eintragen:
+   - `https://github.com/northpower25/ha-network-inet-monitor`
+4. Speichern.
+5. Danach erscheint das Add-on **Network Quality Agent** im Add-on Store und kann installiert werden.
+
+> Wichtig: Nur die reine Repository-URL `https://github.com/northpower25/ha-network-inet-monitor` verwenden und keine zusätzlichen Pfad-Suffixe wie `/tree/main/...` anhängen. Home Assistant erwartet die URL des Git-Repositories.
+
+### Empfohlene Kombination mit der Integration
+
+1. Add-on **Network Quality Agent** installieren und starten.
+2. Danach die Integration **Network Quality Internet Monitor** über HACS installieren.
+3. In der Integration `agent_mode = addon` wählen.
+4. `agent_url` leer lassen, damit automatisch `http://127.0.0.1:8099` verwendet wird.
+5. `agent_token` nur setzen, wenn im Add-on ebenfalls ein Token konfiguriert wurde.
+
 ## Konfiguration in Home Assistant
 
 Nach dem Neustart:
