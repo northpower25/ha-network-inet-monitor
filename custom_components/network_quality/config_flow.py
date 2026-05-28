@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ipaddress
+import re
 from typing import Any
+from urllib.parse import urlparse
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
@@ -48,7 +51,41 @@ ROUTER_TYPES = ["fritzbox", "openwrt", "unifi", "other"]
 
 
 def _parse_targets(targets_input: str) -> list[str]:
-    return [line.strip() for line in targets_input.splitlines() if line.strip()]
+    """Parse a comma- or newline-separated list of test targets.
+
+    Both separators are accepted so that existing configs stored with
+    newline-separated values (from before the comma format was introduced)
+    continue to work correctly.
+    """
+    normalized = targets_input.replace(",", "\n")
+    return [t.strip() for t in normalized.splitlines() if t.strip()]
+
+
+_HOSTNAME_RE = re.compile(
+    r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*"
+    r"[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$"
+)
+
+
+def _is_valid_target(target: str) -> bool:
+    """Return True if target is a valid IPv4/IPv6 address, hostname, or http(s) URL."""
+    try:
+        ipaddress.ip_address(target)
+        return True
+    except ValueError:
+        pass
+    parsed = urlparse(target)
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        return True
+    return bool(_HOSTNAME_RE.match(target))
+
+
+def _validate_targets(targets: list[str]) -> dict[str, str]:
+    """Return an error dict if any target is not a valid IP, hostname, or URL."""
+    invalid = [t for t in targets if not _is_valid_target(t)]
+    if invalid:
+        return {CONF_TEST_TARGETS: "invalid_test_targets"}
+    return {}
 
 
 def _build_selected_services(user_input: dict[str, Any]) -> list[str]:
@@ -169,7 +206,7 @@ def _build_schema(
         ): bool,
         vol.Optional(
             CONF_TEST_TARGETS,
-            default="\n".join(options_defaults.get(CONF_TEST_TARGETS, DEFAULT_TEST_TARGETS)),
+            default=", ".join(options_defaults.get(CONF_TEST_TARGETS, DEFAULT_TEST_TARGETS)),
         ): str,
         vol.Optional(
             CONF_AGENT_URL,
@@ -208,6 +245,10 @@ class NetworkQualityConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str]
         if user_input is not None:
             errors = _validate_ranges(user_input)
+            if not errors:
+                parsed_targets = _parse_targets(user_input.get(CONF_TEST_TARGETS, ""))
+                if parsed_targets:
+                    errors = _validate_targets(parsed_targets)
             if not errors:
                 await self.async_set_unique_id(user_input[CONF_ISP].strip().lower())
                 self._abort_if_unique_id_configured()
@@ -256,6 +297,10 @@ class NetworkQualityOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str]
         if user_input is not None:
             errors = _validate_ranges(user_input)
+            if not errors:
+                parsed_targets = _parse_targets(user_input.get(CONF_TEST_TARGETS, ""))
+                if parsed_targets:
+                    errors = _validate_targets(parsed_targets)
             if not errors:
                 self.hass.config_entries.async_update_entry(
                     self._config_entry,
