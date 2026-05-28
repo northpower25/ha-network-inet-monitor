@@ -34,7 +34,7 @@ Dieses Repository enthält zusätzlich das Add-on **Network Quality Agent**.
 4. Speichern.
 5. Danach erscheint das Add-on **Network Quality Agent** im Add-on Store und kann installiert werden.
 
-> Wichtig: Nicht die GitHub-Web-URL mit `/tree/main/...` verwenden. Home Assistant erwartet die URL des Git-Repositories.
+> Wichtig: Nur die reine Repository-URL `https://github.com/northpower25/ha-network-inet-monitor` verwenden und keine zusätzlichen Pfad-Suffixe wie `/tree/main/...` anhängen. Home Assistant erwartet die URL des Git-Repositories.
 
 ### Empfohlene Kombination mit der Integration
 
