@@ -125,8 +125,11 @@ def test_agent_records_failed_speedtest_attempts() -> None:
         metrics = await state.get_metrics()
         assert metrics["tests"]["download"]["last_run_at"] is not None
         assert metrics["tests"]["upload"]["last_run_at"] is not None
-        assert metrics["tests"]["download"]["reason"] == "failed:RuntimeError"
-        assert metrics["tests"]["upload"]["reason"] == "failed:RuntimeError"
+        # With multi-method speedtest, per-method failures are stored in
+        # method_results; the top-level reason is "no_data" when no method
+        # produced usable throughput values.
+        assert metrics["tests"]["download"]["reason"] == "no_data"
+        assert metrics["tests"]["upload"]["reason"] == "no_data"
         assert metrics["methods"] == {}
 
     asyncio.run(_run())
