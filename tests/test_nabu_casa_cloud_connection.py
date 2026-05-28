@@ -120,3 +120,4 @@ def test_nabu_casa_cloud_connection_reflects_online_state() -> None:
     assert online[0].reachable is True
     assert online[0].detail == "external_checks_disabled"
     assert offline[0].reachable is False
+    assert offline[0].detail == "external_checks_disabled"
