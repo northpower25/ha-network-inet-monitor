@@ -140,11 +140,6 @@ iperf3-Tests werden **sequenziell** (ein Server nach dem anderen) im Reverse-Mod
 
 Der Ookla-Speedtest wählt automatisch den besten verfügbaren Server aus (`get_best_server()`) und misst Download, Upload und Ping. Er liefert als einzige Methode auch Upload-Messwerte.
 
-### `token` (optional)
-- Standard: leer
-- Funktion: Schützt `/metrics` per Bearer-Token.
-- Wichtig: Bei gesetztem Token muss in der Integration `agent_token` identisch gesetzt sein.
-
 ---
 
 ## Zusammenspiel mit der Integration

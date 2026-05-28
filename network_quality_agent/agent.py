@@ -68,14 +68,11 @@ def load_options() -> dict[str, Any]:
     return options
 
 
-def _median_float(values: list[float]) -> float:
+def _safe_median(values: list[float]) -> float:
+    """Return the rounded median of *values*, or 0.0 if the list is empty."""
     if not values:
         return 0.0
-    sorted_vals = sorted(values)
-    mid = len(sorted_vals) // 2
-    if len(sorted_vals) % 2 == 0:
-        return round((sorted_vals[mid - 1] + sorted_vals[mid]) / 2.0, 2)
-    return round(sorted_vals[mid], 2)
+    return round(float(median(values)), 2)
 
 
 class AgentState:
@@ -196,16 +193,10 @@ class AgentState:
                 "download_mbps": round(float(http["download_mbps"]), 2),
             }
 
-        # iperf3 (combined DE + EU targets)
+        # iperf3 (combined DE + EU targets) – reverse mode provides download only
         iperf = method_results.get("iperf3", {})
-        if iperf.get("reason") == "ok":
-            iperf_entry: dict[str, float] = {}
-            if float(iperf.get("download_mbps", 0.0)) > 0.0:
-                iperf_entry["download_mbps"] = round(float(iperf["download_mbps"]), 2)
-            if float(iperf.get("upload_mbps", 0.0)) > 0.0:
-                iperf_entry["upload_mbps"] = round(float(iperf["upload_mbps"]), 2)
-            if iperf_entry:
-                result["iperf3"] = iperf_entry
+        if iperf.get("reason") == "ok" and float(iperf.get("download_mbps", 0.0)) > 0.0:
+            result["iperf3"] = {"download_mbps": round(float(iperf["download_mbps"]), 2)}
 
         return result
 
@@ -218,11 +209,8 @@ class AgentState:
         return max(candidates)
 
     def _best_upload_mbps(self, method_results: dict[str, Any]) -> float:
-        candidates = [
-            float(method_results.get("ookla", {}).get("upload_mbps", 0.0)),
-            float(method_results.get("iperf3", {}).get("upload_mbps", 0.0)),
-        ]
-        return max(candidates)
+        # Upload is only provided by Ookla; iperf3 runs in reverse mode (download only).
+        return float(method_results.get("ookla", {}).get("upload_mbps", 0.0))
 
     def _should_start_speedtest(self, *, now: datetime) -> bool:
         if self._speedtest["running"]:
@@ -326,6 +314,8 @@ class AgentState:
         streams = max(1, int(self.options.get("http_download_streams", 4)))
 
         connector = aiohttp.TCPConnector(limit=0)
+        # Allow 30 s overhead beyond the download window for connection setup and
+        # final chunk delivery before the session-level timeout fires.
         timeout = aiohttp.ClientTimeout(total=duration + 30, connect=10)
         async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
             tasks = [
@@ -338,7 +328,7 @@ class AgentState:
         if not successful:
             return {"servers": server_results, "download_mbps": 0.0, "reason": "all_failed"}
 
-        median_speed = _median_float([float(r["download_mbps"]) for r in successful])
+        median_speed = _safe_median([float(r["download_mbps"]) for r in successful])
         return {
             "servers": server_results,
             "download_mbps": median_speed,
@@ -376,7 +366,9 @@ class AgentState:
         wall_elapsed = asyncio.get_running_loop().time() - wall_start
 
         total_bytes = sum(byte_counts)
-        # Require at least half the requested duration to produce a valid result
+        # Require at least 40 % of the requested duration to have elapsed so that
+        # a single fast connection setup does not produce a spuriously high rate
+        # when the server closes the connection almost immediately.
         if wall_elapsed >= duration * 0.4 and total_bytes > 0:
             mbps = (total_bytes * 8) / (wall_elapsed * 1_000_000)
             return {"host": host, "download_mbps": round(mbps, 2), "reason": "ok"}
@@ -415,15 +407,12 @@ class AgentState:
             return {"servers": server_results, "download_mbps": 0.0, "reason": "all_failed"}
 
         # Use median download across successful servers to dampen outliers
-        median_dl = _median_float([float(r["download_mbps"]) for r in successful])
-        upload_values = [float(r["upload_mbps"]) for r in successful if float(r.get("upload_mbps", 0.0)) > 0.0]
+        median_dl = _safe_median([float(r["download_mbps"]) for r in successful])
         result_dict: dict[str, Any] = {
             "servers": server_results,
             "download_mbps": median_dl,
             "reason": "ok",
         }
-        if upload_values:
-            result_dict["upload_mbps"] = _median_float(upload_values)
         return result_dict
 
     async def _iperf3_single(
@@ -470,14 +459,12 @@ class AgentState:
                 return {"host": host, "download_mbps": 0.0, "reason": f"iperf3_error:{short_error}"}
 
             end = data.get("end", {})
-            # In reverse mode (-R), sum_received at the client = download throughput
+            # In reverse mode (-R) the client receives data from the server.
+            # sum_received = actual download throughput from the client's perspective.
             dl_bps = float(end.get("sum_received", {}).get("bits_per_second", 0.0))
-            # sum_sent (server→client confirms what was pushed) – use as upload proxy
-            ul_bps = float(end.get("sum_sent", {}).get("bits_per_second", 0.0))
             return {
                 "host": host,
                 "download_mbps": round(dl_bps / 1_000_000, 2),
-                "upload_mbps": round(ul_bps / 1_000_000, 2),
                 "reason": "ok",
             }
         except FileNotFoundError:
