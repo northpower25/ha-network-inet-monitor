@@ -1,41 +1,145 @@
 # ha-network-inet-monitor
-HomeAssistant Network and Internet Monitor Integration
 
-## Status
+Home Assistant Custom Integration zur Überwachung der Internet- und Verbindungsqualität.
 
-Diese Repository-Version enthält ein MVP der HACS-fähigen Home-Assistant-Custom-Integration unter:
+## Installation über HACS
 
-`custom_components/network_quality/`
+### Voraussetzungen
 
-## Enthaltene MVP-Funktionen
+- Laufende Home-Assistant-Installation
+- [HACS](https://hacs.xyz/) ist bereits installiert
 
-- UI-basierter Config Flow mit Pflichtfeldern:
-  - Internetanbieter (ISP)
-  - Routertyp
-  - Vertragswerte für Download/Upload (min/normal/max)
-  - Monitoring-Optionen (Region, Intervalle, Testziele, Dienstauswahl, Agent-URL)
-- Options Flow für:
-  - dieselben Felder wie im Setup-Flow (vollständig nachträglich anpassbar)
-  - Region mit Vorschlagswert aus Home-Assistant-Standortname
-- `DataUpdateCoordinator`-basierte Datenaufbereitung mit:
-  - Download/Upload
-  - Ping/Jitter/Paketverlust
+### Installation (Custom Repository)
+
+1. HACS in Home Assistant öffnen.
+2. **Integrations** auswählen.
+3. Oben rechts auf die drei Punkte klicken → **Custom repositories**.
+4. Repository-URL eintragen:
+   - `https://github.com/northpower25/ha-network-inet-monitor`
+5. Kategorie **Integration** wählen und speichern.
+6. In HACS nach **Network Quality Internet Monitor** suchen.
+7. Integration installieren.
+8. Home Assistant neu starten.
+
+## Konfiguration in Home Assistant
+
+Nach dem Neustart:
+
+1. **Einstellungen → Geräte & Dienste → Integration hinzufügen**.
+2. Nach **Network Quality Internet Monitor** suchen.
+3. Setup-Dialog ausfüllen.
+
+### Pflichtfelder
+
+- Anzeigename der Instanz
+- Internetanbieter (ISP)
+- Router-Typ (`fritzbox`, `OpenWRT`, `unifi`, `other`)
+- Vertragswerte für Download (min/normal/max)
+- Vertragswerte für Upload (min/normal/max)
+
+### Optionen im Setup/Options-Flow
+
+- Region
+- Test-Intervalle (Speedtest, Ping, Traceroute, Download-Test, Upload-Test, Status)
+- Opt-in für externe Servicechecks
+- Testziele (IP, Hostname oder URL; kommasepariert oder zeilenweise)
+- `agent_url` für einen lokalen Mess-Agenten
+- Auswahl der zu überwachenden Dienste (z. B. Amazon, Google, Netflix, OpenAI, GitHub, …)
+
+### Wichtige Hinweise zur Konfiguration
+
+- `download_min <= download_normal <= download_max` und analog für Upload, sonst wird die Eingabe abgelehnt.
+- Wenn keine Testziele gesetzt sind, nutzt die Integration Standardziele.
+- Änderungen in den Intervall-Optionen greifen dynamisch, da der Coordinator sein Aktualisierungsintervall bei jedem Refresh neu berechnet.
+
+## Funktionsweise der Integration (detailliert)
+
+### 1. Datenerfassung
+
+Die Integration nutzt einen `DataUpdateCoordinator` als zentrale Sammelstelle.
+
+Es gibt zwei Betriebsarten:
+
+1. **Mit Agent (`agent_url` gesetzt)**
+   - Abruf von `.../metrics`
+   - Übernahme von Download, Upload, Ping, Jitter, Paketverlust, Verfügbarkeit, Online-Status
+   - Übernahme von Testlauf-Metadaten (z. B. letzte Läufe, aktive Tests)
+
+2. **Ohne Agent (`agent_url` leer)**
+   - Download/Upload werden aus den konfigurierten Vertrags-Normalwerten initialisiert
+   - Lokale Fallback-Messung per TCP-Connect-Probes auf konfigurierte Ziele (Port 443)
+   - Daraus werden Ping/Jitter/Paketverlust/Verfügbarkeit und Online-Status bestimmt
+
+### 2. Bewertung und Kennzahlen
+
+Aus jedem Sample werden Kennzahlen berechnet:
+
+- **Contract Ratio (%)** aus dem Verhältnis gemessener zu erwarteter Download-/Upload-Leistung
+- **Quality Score (0–100)** aus gewichteten Faktoren:
+  - Vertragserfüllung
+  - Latenz
+  - Jitter
+  - Paketverlust
   - Verfügbarkeit
-  - Vertragsquote
-  - Quality Score (0–100) + Qualitätsklasse A–E
-- Persistenter Messhistorie mit ML-ähnlichen Baselines über Stunde/Tag/Woche/Monat/Quartal
-- Erkennung von Ausfällen, starken Qualitätseinbrüchen und wiederkehrenden Auffälligkeiten
-- Sensoren und Binary Sensoren für Kernmetriken und Dienststatus
-- Erweiterter Dienstkatalog inkl. Social Media und Mail/Webmail-Anbietern
-- Diagnostik mit Redaction sensibler Felder
-- Eigenes Analytics-Panel mit Datumsfilter, Periodenauswahl, Trenddiagrammen und separatem Dienste-Reiter
-- Services:
-  - `network_quality.export_report`
-  - `network_quality.install_dashboard`
-- Dashboard-Template unter:
-  - `custom_components/network_quality/dashboard/network_quality_dashboard.json`
+- **Qualitätsklasse A–E** auf Basis des Scores
 
-## Struktur
+Zusätzlich werden Rolling-Aggregate (Durchschnitt, Min, Max) über den internen Sample-Verlauf bereitgestellt.
+
+### 3. Historie und Analyse
+
+- Persistente Historie wird in Home-Assistant-Storage abgelegt.
+- Samples werden mit Downsampling-Logik gespeichert (zeitbasiert oder bei relevanten Zustandsänderungen).
+- Die Analytics-Komponente erzeugt Aggregationen für Stunde/Tag/Woche/Monat/Quartal.
+- Es werden u. a. Ausfälle, starke Qualitätseinbrüche und Muster für das Dashboard aufbereitet.
+
+### 4. Entitäten
+
+#### Sensoren
+
+- `internet_download`
+- `internet_upload`
+- `ping_public`
+- `packet_loss`
+- `jitter`
+- `availability`
+- `contract_ratio`
+- `quality_score`
+- `quality_class`
+- `debug_status`
+
+#### Binary Sensoren
+
+- `internet_online`
+- Dienststatus-Sensoren je aktivierter Dienst (`service_<name>`)
+
+### 5. Dashboard und Frontend
+
+Die Integration registriert automatisch:
+
+- ein Sidebar-Panel **Network Quality** unter `/network-quality-overview`
+- statische Frontend-Ressourcen unter `/{domain}_local/`
+- einen WebSocket-Command `network_quality/dashboard_data` für aggregierte Dashboard-Daten
+
+Zusätzlich kann ein Lovelace-Dashboard-Template aus `custom_components/network_quality/dashboard/network_quality_dashboard.json` installiert werden.
+
+### 6. Services
+
+- `network_quality.export_report`
+  - Exportiert einen Qualitätsbericht (Datei oder Event)
+  - Optional mit Rohdaten
+- `network_quality.install_dashboard`
+  - Installiert Dashboard-Views in das Standard-Lovelace-Dashboard
+
+### 7. Diagnose
+
+Der Sensor `debug_status` liefert Diagnosezustand (`ok`, `warning`, `error`) und detaillierte Attribute, z. B.:
+
+- Agent-Konfiguration
+- letzte erfolgreiche/fehlerhafte Aktualisierung
+- konfigurierte Testintervalle
+- Checkliste für letzte Testläufe
+
+## Projektstruktur
 
 ```text
 custom_components/network_quality/
@@ -55,18 +159,3 @@ custom_components/network_quality/
       ├── de.json
       └── en.json
 ```
-
-## Hinweis zum Mess-Backend
-
-Das MVP unterstützt optional einen lokalen Agent-Endpunkt via `agent_url`.
-Wenn kein Agent konfiguriert ist, werden sichere lokale Defaultwerte zur Funktionsprüfung genutzt.
-
-## Analytics-Dashboard
-
-- Sidebar-Panel **Network Quality** mit:
-  - Zeitraumfilter (`von` / `bis`)
-  - Periodenaggregation (Stunde, Tag, Woche, Monat, Quartal)
-  - ML-Baseline-Vergleich für aktuelle Werte und Verlauf
-  - Erkennung von Ausfällen und drastischen Qualitätsabfällen
-  - separatem Reiter für überwachte Dienste
-- Lovelace-Dashboard-Template mit zusätzlicher Service-Ansicht und erweiterten Verlaufsgrafiken
