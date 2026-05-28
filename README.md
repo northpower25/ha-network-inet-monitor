@@ -33,7 +33,7 @@ Nach dem Neustart:
 
 - Anzeigename der Instanz
 - Internetanbieter (ISP)
-- Router-Typ (`fritzbox`, `openwrt`, `unifi`, `other`)
+- Router-Typ (`fritzbox`, `OpenWRT`, `unifi`, `other`)
 - Vertragswerte für Download (min/normal/max)
 - Vertragswerte für Upload (min/normal/max)
 
