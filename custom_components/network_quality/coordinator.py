@@ -365,6 +365,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if isinstance(details, dict)
                 else None
             )
+            reason = str(details.get("reason", "")).strip() if isinstance(details, dict) else ""
             checklist.append(
                 {
                     "id": f"{test_name}_last_run",
@@ -372,7 +373,11 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "detail": (
                         f"Last run at {last_run.isoformat()}"
                         if last_run
-                        else f"No valid last_run_at for {test_name} test"
+                        else (
+                            "Skipped: no agent URL configured"
+                            if reason == "agent_url_not_configured"
+                            else f"No valid last_run_at for {test_name} test"
+                        )
                     ),
                 }
             )
@@ -416,14 +421,16 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "traceroute": {"last_run_at": timestamp},
             "status": {"last_run_at": timestamp},
             "download": {
-                "last_run_at": timestamp,
-                "last_started_at": timestamp,
-                "last_finished_at": timestamp,
+                "last_run_at": None,
+                "last_started_at": None,
+                "last_finished_at": None,
+                "reason": "agent_url_not_configured",
             },
             "upload": {
-                "last_run_at": timestamp,
-                "last_started_at": timestamp,
-                "last_finished_at": timestamp,
+                "last_run_at": None,
+                "last_started_at": None,
+                "last_finished_at": None,
+                "reason": "agent_url_not_configured",
             },
         }
 

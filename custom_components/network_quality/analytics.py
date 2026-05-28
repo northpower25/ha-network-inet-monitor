@@ -371,7 +371,12 @@ def _service_summary(history: list[StoredSample]) -> list[dict[str, Any]]:
     per_service: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for entry in history:
         for service in entry.get("services", []):
-            per_service[service["name"]].append(service)
+            per_service[service["name"]].append(
+                {
+                    **service,
+                    "timestamp": entry["timestamp"],
+                }
+            )
 
     summary: list[dict[str, Any]] = []
     for name in sorted(per_service):
@@ -396,6 +401,11 @@ def _service_summary(history: list[StoredSample]) -> list[dict[str, Any]]:
                 "availability_ratio": availability,
                 "outages": outages,
                 "samples": len(items),
+                "last_checked_at": (
+                    last["timestamp"].isoformat()
+                    if isinstance(last.get("timestamp"), datetime)
+                    else None
+                ),
             }
         )
     return summary

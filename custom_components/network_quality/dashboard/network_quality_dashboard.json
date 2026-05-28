@@ -55,35 +55,122 @@
           "type": "entities",
           "title": "Monitored services",
           "entities": [
-            "binary_sensor.network_quality_internet_online",
-            "binary_sensor.network_quality_service_amazon",
-            "binary_sensor.network_quality_service_google",
-            "binary_sensor.network_quality_service_microsoft",
-            "binary_sensor.network_quality_service_netflix",
-            "binary_sensor.network_quality_service_spotify",
-            "binary_sensor.network_quality_service_discord",
-            "binary_sensor.network_quality_service_whatsapp",
-            "binary_sensor.network_quality_service_openai",
-            "binary_sensor.network_quality_service_claude",
-            "binary_sensor.network_quality_service_github",
-            "binary_sensor.network_quality_service_youtube",
-            "binary_sensor.network_quality_service_x",
-            "binary_sensor.network_quality_service_facebook",
-            "binary_sensor.network_quality_service_instagram",
-            "binary_sensor.network_quality_service_tiktok",
-            "binary_sensor.network_quality_service_linkedin",
-            "binary_sensor.network_quality_service_reddit",
-            "binary_sensor.network_quality_service_telegram",
-            "binary_sensor.network_quality_service_gmail",
-            "binary_sensor.network_quality_service_outlook_com",
-            "binary_sensor.network_quality_service_yahoo_mail",
-            "binary_sensor.network_quality_service_icloud_mail",
-            "binary_sensor.network_quality_service_proton_mail",
-            "binary_sensor.network_quality_service_strato",
-            "binary_sensor.network_quality_service_one_and_one",
-            "binary_sensor.network_quality_service_freenet",
-            "binary_sensor.network_quality_service_web_de",
-            "binary_sensor.network_quality_service_gmx"
+            {
+              "entity": "binary_sensor.network_quality_internet_online",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_amazon",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_google",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_microsoft",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_netflix",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_spotify",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_discord",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_whatsapp",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_openai",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_claude",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_github",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_youtube",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_x",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_facebook",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_instagram",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_tiktok",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_linkedin",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_reddit",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_telegram",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_gmail",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_outlook_com",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_yahoo_mail",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_icloud_mail",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_proton_mail",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_strato",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_one_and_one",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_freenet",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_web_de",
+              "secondary_info": "last-updated"
+            },
+            {
+              "entity": "binary_sensor.network_quality_service_gmx",
+              "secondary_info": "last-updated"
+            }
           ]
         }
       ]
