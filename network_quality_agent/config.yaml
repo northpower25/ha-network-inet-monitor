@@ -29,6 +29,28 @@ options:
     - "8.8.8.8"
     - "9.9.9.9"
   token: ""
+  # HTTP download test – BNetzA-analogous multi-server measurement
+  http_download_targets:
+    - "speedtest.wtnet.de"
+    - "speedtest.studiofunk.de"
+    - "fra.speedtest.clouvider.net"
+  http_download_path: "/10G.bin"
+  http_download_duration_seconds: 10
+  http_download_streams: 4
+  # iperf3 tests – DE servers
+  iperf3_targets:
+    - "fra.speedtest.clouvider.net"
+    - "speedtest.wtnet.de"
+    - "speedtest.studiofunk.de"
+  # iperf3 additional EU diversity servers
+  iperf3_eu_targets:
+    - "ams.speedtest.clouvider.net"
+    - "lon.speedtest.clouvider.net"
+  iperf3_port: 5201
+  iperf3_duration_seconds: 10
+  iperf3_streams: 4
+  # Ookla speedtest (provider: ookla_auto)
+  speedtest_ookla_enabled: true
 schema:
   bind_host: str
   bind_port: port
@@ -40,3 +62,16 @@ schema:
   targets:
     - str
   token: str?
+  http_download_targets:
+    - str
+  http_download_path: str
+  http_download_duration_seconds: int(5,120)
+  http_download_streams: int(1,16)
+  iperf3_targets:
+    - str
+  iperf3_eu_targets:
+    - str
+  iperf3_port: port
+  iperf3_duration_seconds: int(5,120)
+  iperf3_streams: int(1,16)
+  speedtest_ookla_enabled: bool
