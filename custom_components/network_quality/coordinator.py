@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 import logging
@@ -44,6 +45,7 @@ from .const import (
     MIN_UPDATE_INTERVAL_SECONDS,
     UPDATE_TIMEOUT_SECONDS,
 )
+from .target_parser import parse_target_host_port
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,6 +78,9 @@ QUALITY_CLASS_C_THRESHOLD = 60.0
 QUALITY_CLASS_D_THRESHOLD = 40.0
 MAX_REASONABLE_FUTURE_DAYS = 3650
 DIAGNOSTIC_STALE_FACTOR = 2.0
+FALLBACK_CONNECT_PROBE_ATTEMPTS = 3
+FALLBACK_CONNECT_TIMEOUT_SECONDS = 3.0
+FALLBACK_CONNECT_PORT = 443
 
 
 @dataclass(slots=True)
@@ -166,13 +171,14 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 tests = self._extract_test_runs(payload)
                 active_test_events = self._extract_active_test_events(payload, tests)
             else:
-                online = True
                 download = float(contract.get(CONF_DOWNLOAD_NORMAL, 0.0))
                 upload = float(contract.get(CONF_UPLOAD_NORMAL, 0.0))
-                ping = 10.0
-                jitter = 1.0
-                packet_loss = 0.0
-                availability = 100.0
+                fallback_probe = await self._async_collect_local_probe_metrics(targets)
+                online = bool(fallback_probe["online"])
+                ping = float(fallback_probe["ping"])
+                jitter = float(fallback_probe["jitter"])
+                packet_loss = float(fallback_probe["packet_loss"])
+                availability = float(fallback_probe["availability"])
                 tests = self._build_default_test_runs(now)
                 active_test_events = []
         except Exception as err:
@@ -230,6 +236,8 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         now = datetime.now(tz=UTC)
         if not self.last_update_success:
             return "error"
+        if not self.entry.options.get(CONF_AGENT_URL):
+            return "warning"
         if self._is_data_stale(now=now):
             return "warning"
         return "ok"
@@ -384,6 +392,91 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "last_finished_at": timestamp,
             },
         }
+
+    async def _async_collect_local_probe_metrics(self, targets: list[str] | Any) -> dict[str, float | bool]:
+        """Measure local TCP connect latency as fallback when no agent URL is configured."""
+        hosts = self._normalize_probe_targets(targets)
+        if not hosts:
+            return {
+                "online": False,
+                "ping": 0.0,
+                "jitter": 0.0,
+                "packet_loss": 100.0,
+                "availability": 0.0,
+            }
+
+        latencies: list[float] = []
+        failed = 0
+        total = 0
+        host_count = len(hosts)
+
+        for probe_index in range(FALLBACK_CONNECT_PROBE_ATTEMPTS):
+            host = hosts[probe_index % host_count]
+            total += 1
+            latency = await self._async_measure_connect_latency_ms(host)
+            if latency is None:
+                failed += 1
+                continue
+            latencies.append(latency)
+
+        if not latencies:
+            return {
+                "online": False,
+                "ping": 0.0,
+                "jitter": 0.0,
+                "packet_loss": 100.0,
+                "availability": 0.0,
+            }
+
+        deltas = [abs(current - previous) for previous, current in zip(latencies, latencies[1:])]
+        successful = total - failed
+        return {
+            "online": successful > 0,
+            "ping": round(mean(latencies), 2),
+            "jitter": round(mean(deltas), 2) if deltas else 0.0,
+            "packet_loss": round((failed / total) * 100.0, 2),
+            "availability": round((successful / total) * 100.0, 2),
+        }
+
+    async def _async_measure_connect_latency_ms(self, host: str) -> float | None:
+        """Return TCP connect latency for one target."""
+        started = datetime.now(tz=UTC)
+        writer = None
+        try:
+            connection = asyncio.open_connection(host, FALLBACK_CONNECT_PORT)
+            _, writer = await asyncio.wait_for(
+                connection,
+                timeout=FALLBACK_CONNECT_TIMEOUT_SECONDS,
+            )
+        except (OSError, TimeoutError):
+            return None
+        try:
+            latency_ms = (datetime.now(tz=UTC) - started).total_seconds() * 1000.0
+            return round(latency_ms, 2)
+        finally:
+            if writer is not None:
+                writer.close()
+                await writer.wait_closed()
+
+    def _normalize_probe_targets(self, targets: list[str] | Any) -> list[str]:
+        """Extract unique hostnames/IPs from configured targets."""
+        if not isinstance(targets, list):
+            return []
+        hosts: list[str] = []
+        for value in targets:
+            if not isinstance(value, str):
+                continue
+            candidate = value.strip()
+            if not candidate:
+                continue
+            parsed = parse_target_host_port(candidate)
+            if parsed is None:
+                continue
+            host, _ = parsed
+            host = host.strip("[]").strip()
+            if host and host not in hosts:
+                hosts.append(host)
+        return hosts
 
     def _extract_test_runs(self, payload: dict[str, Any]) -> dict[str, dict[str, str | None]]:
         """Normalize test run metadata from agent payload."""

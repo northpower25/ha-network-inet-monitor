@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_SERVICE_STATUSES, DATA_COORDINATOR, DOMAIN
 from .coordinator import NetworkQualityCoordinator, ServiceStatus
+from .entity import build_device_info
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -55,6 +56,7 @@ class NetworkQualityBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], B
         self.entity_description = description
         self._attr_unique_id = description.key
         self._attr_suggested_object_id = f"{DOMAIN}_{description.key}"
+        self._attr_has_entity_name = True
         self._attr_is_on: bool | None = None
 
     async def async_added_to_hass(self) -> None:
@@ -70,6 +72,11 @@ class NetworkQualityBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], B
         if not self.coordinator.data:
             return self._attr_is_on
         return bool(self.coordinator.data.get("online"))
+
+    @property
+    def device_info(self) -> dict[str, object]:
+        """Return device metadata so entities are grouped in one integration device."""
+        return build_device_info(self.coordinator.entry)
 
 
 class NetworkQualityServiceBinarySensor(CoordinatorEntity[NetworkQualityCoordinator], BinarySensorEntity, RestoreEntity):
@@ -118,3 +125,8 @@ class NetworkQualityServiceBinarySensor(CoordinatorEntity[NetworkQualityCoordina
             if status.name == self._service_name:
                 return status
         return None
+
+    @property
+    def device_info(self) -> dict[str, object]:
+        """Return device metadata so entities are grouped in one integration device."""
+        return build_device_info(self.coordinator.entry)
