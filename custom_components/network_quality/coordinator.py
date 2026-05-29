@@ -574,7 +574,6 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     url,
                     timeout=8,
                     allow_redirects=True,
-                    ssl=False,
                 )
                 reachable = resp.status < 500
             except Exception:

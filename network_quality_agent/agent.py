@@ -409,6 +409,8 @@ class AgentState:
     # Fast.com tests (Netflix CDN)
     # ------------------------------------------------------------------
 
+    # The fast.com API token below is the publicly documented token distributed
+    # with the official fast-cli open-source tool (not a secret credential).
     _FASTCOM_API_URL = (
         "https://api.fast.com/netflix/speedtest/v2"
         "?https=true&token=YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm&urlCount=5"
