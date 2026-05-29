@@ -498,6 +498,9 @@ class NetworkQualityPanel extends HTMLElement {
   _overviewMetrics() {
     const current = this._data?.current || {};
     const baseline = this._data?.baseline_current || {};
+    const measuredAt = current.timestamp
+      ? `<div class="muted" style="margin-top: 6px; font-size: 0.78em;">Measured: ${escapeHtml(formatDateTime(current.timestamp))}</div>`
+      : "";
     return ["score", "download", "upload", "ping"].map((metric) => {
       const delta = formatDelta(metric, current[metric], baseline[metric]);
       return `
@@ -506,6 +509,7 @@ class NetworkQualityPanel extends HTMLElement {
           <div class="metric-main">${escapeHtml(formatValue(metric, current[metric]))}</div>
           <div class="metric-sub">Baseline: ${escapeHtml(formatValue(metric, baseline[metric]))}</div>
           <div class="delta ${escapeHtml(delta.className)}">${escapeHtml(delta.text)}</div>
+          ${measuredAt}
         </div>
       `;
     }).join("");

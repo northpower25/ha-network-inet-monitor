@@ -48,6 +48,10 @@ DEFAULTS: dict[str, Any] = {
     "iperf3_port": 5201,
     "iperf3_duration_seconds": 10,
     "iperf3_streams": 4,
+    # Fast.com download test
+    "fastcom_enabled": True,
+    "fastcom_duration_seconds": 10,
+    "fastcom_streams": 4,
     # Ookla speedtest (provider: ookla_auto – uses get_best_server())
     "speedtest_ookla_enabled": True,
 }
@@ -193,10 +197,23 @@ class AgentState:
                 "download_mbps": round(float(http["download_mbps"]), 2),
             }
 
-        # iperf3 (combined DE + EU targets) – reverse mode provides download only
+        # iperf3 (combined DE + EU targets) – reverse mode for download,
+        # normal mode for upload
         iperf = method_results.get("iperf3", {})
         if iperf.get("reason") == "ok" and float(iperf.get("download_mbps", 0.0)) > 0.0:
-            result["iperf3"] = {"download_mbps": round(float(iperf["download_mbps"]), 2)}
+            iperf_metrics: dict[str, float] = {
+                "download_mbps": round(float(iperf["download_mbps"]), 2),
+            }
+            if isinstance(iperf.get("upload_mbps"), (int, float)) and float(iperf["upload_mbps"]) > 0.0:
+                iperf_metrics["upload_mbps"] = round(float(iperf["upload_mbps"]), 2)
+            result["iperf3"] = iperf_metrics
+
+        # Fast.com (Netflix CDN)
+        fast = method_results.get("fast_com", {})
+        if fast.get("reason") == "ok" and float(fast.get("download_mbps", 0.0)) > 0.0:
+            result["fast_com"] = {
+                "download_mbps": round(float(fast["download_mbps"]), 2),
+            }
 
         return result
 
@@ -205,12 +222,17 @@ class AgentState:
             float(method_results.get("http_download", {}).get("download_mbps", 0.0)),
             float(method_results.get("iperf3", {}).get("download_mbps", 0.0)),
             float(method_results.get("ookla", {}).get("download_mbps", 0.0)),
+            float(method_results.get("fast_com", {}).get("download_mbps", 0.0)),
         ]
         return max(candidates)
 
     def _best_upload_mbps(self, method_results: dict[str, Any]) -> float:
-        # Upload is only provided by Ookla; iperf3 runs in reverse mode (download only).
-        return float(method_results.get("ookla", {}).get("upload_mbps", 0.0))
+        # Upload from Ookla and/or iperf3 normal-mode; take the higher value.
+        candidates = [
+            float(method_results.get("ookla", {}).get("upload_mbps", 0.0)),
+            float(method_results.get("iperf3", {}).get("upload_mbps", 0.0)),
+        ]
+        return max(candidates)
 
     def _should_start_speedtest(self, *, now: datetime) -> bool:
         if self._speedtest["running"]:
@@ -286,7 +308,16 @@ class AgentState:
         except Exception:
             pass
 
-        # 3. Ookla speedtest (provider: ookla_auto)
+        # 3. Fast.com download (Netflix CDN)
+        if self.options.get("fastcom_enabled", True):
+            try:
+                fast_result = await self._run_fast_com_tests()
+                if fast_result:
+                    method_results["fast_com"] = fast_result
+            except Exception:
+                pass
+
+        # 4. Ookla speedtest (provider: ookla_auto)
         if self.options.get("speedtest_ookla_enabled", True):
             try:
                 ookla = await asyncio.to_thread(
@@ -375,11 +406,72 @@ class AgentState:
         return {"host": host, "download_mbps": 0.0, "reason": "failed:no_data"}
 
     # ------------------------------------------------------------------
+    # Fast.com tests (Netflix CDN)
+    # ------------------------------------------------------------------
+
+    _FASTCOM_API_URL = (
+        "https://api.fast.com/netflix/speedtest/v2"
+        "?https=true&token=YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm&urlCount=5"
+    )
+
+    async def _run_fast_com_tests(self) -> dict[str, Any]:
+        """Measure download speed via Fast.com (Netflix CDN)."""
+        duration = float(self.options.get("fastcom_duration_seconds", 10))
+        streams = max(1, int(self.options.get("fastcom_streams", 4)))
+
+        connector = aiohttp.TCPConnector(limit=0)
+        timeout = aiohttp.ClientTimeout(total=duration + 30, connect=10)
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            # Step 1: fetch target URLs from Fast.com API
+            try:
+                async with session.get(self._FASTCOM_API_URL) as resp:
+                    resp.raise_for_status()
+                    manifest = await resp.json(content_type=None)
+            except Exception as err:
+                return {"reason": f"failed:api:{type(err).__name__}"}
+
+            targets = [t.get("url") for t in manifest.get("targets", []) if t.get("url")]
+            if not targets:
+                return {"reason": "failed:no_urls"}
+
+            # Step 2: download from each target URL in parallel streams
+            async def _download_url(url: str) -> int:
+                """Download from *url* for *duration* seconds; return byte count."""
+                try:
+                    async with session.get(url) as resp:
+                        resp.raise_for_status()
+                        bytes_count = 0
+                        deadline = asyncio.get_running_loop().time() + duration
+                        async for chunk in resp.content.iter_chunked(65536):
+                            bytes_count += len(chunk)
+                            if asyncio.get_running_loop().time() >= deadline:
+                                break
+                        return bytes_count
+                except Exception:
+                    return 0
+
+            # Fan out streams across available target URLs
+            url_tasks = [
+                asyncio.create_task(_download_url(targets[i % len(targets)]))
+                for i in range(streams)
+            ]
+            wall_start = asyncio.get_running_loop().time()
+            byte_counts: list[int] = list(await asyncio.gather(*url_tasks))
+            wall_elapsed = asyncio.get_running_loop().time() - wall_start
+
+            total_bytes = sum(byte_counts)
+            if wall_elapsed >= duration * 0.4 and total_bytes > 0:
+                mbps = (total_bytes * 8) / (wall_elapsed * 1_000_000)
+                return {"download_mbps": round(mbps, 2), "reason": "ok"}
+            return {"reason": "failed:no_data"}
+
+    # ------------------------------------------------------------------
     # iperf3 tests
     # ------------------------------------------------------------------
 
     async def _run_iperf3_tests(self) -> dict[str, Any]:
-        """Run iperf3 download test against each configured target sequentially."""
+        """Run iperf3 download test against each configured target sequentially,
+        then a single upload test against the best download server."""
         all_targets: list[str] = []
         for h in self.options.get("iperf3_targets", []):
             h = str(h).strip()
@@ -397,6 +489,7 @@ class AgentState:
         duration = int(self.options.get("iperf3_duration_seconds", 10))
         streams = max(1, int(self.options.get("iperf3_streams", 4)))
 
+        # Download pass: reverse mode (-R) against all targets sequentially
         server_results: list[dict[str, Any]] = []
         for host in all_targets:
             result = await self._iperf3_single(host, port, duration, streams)
@@ -413,6 +506,13 @@ class AgentState:
             "download_mbps": median_dl,
             "reason": "ok",
         }
+
+        # Upload pass: normal mode (no -R) against the first successful download server
+        best_host = successful[0]["host"]
+        upload_result = await self._iperf3_single_upload(best_host, port, duration, streams)
+        if upload_result.get("reason") == "ok" and float(upload_result.get("upload_mbps", 0.0)) > 0.0:
+            result_dict["upload_mbps"] = round(float(upload_result["upload_mbps"]), 2)
+
         return result_dict
 
     async def _iperf3_single(
@@ -474,9 +574,65 @@ class AgentState:
         except Exception as err:
             return {"host": host, "download_mbps": 0.0, "reason": f"failed:{type(err).__name__}"}
 
-    # ------------------------------------------------------------------
-    # Ookla speedtest (provider: ookla_auto)
-    # ------------------------------------------------------------------
+    async def _iperf3_single_upload(
+        self,
+        host: str,
+        port: int,
+        duration: int,
+        streams: int,
+    ) -> dict[str, Any]:
+        """Run one iperf3 normal-mode (upload) test against *host*."""
+        cmd = [
+            "iperf3",
+            "-c", host,
+            "-p", str(port),
+            "-t", str(duration),
+            "-P", str(streams),
+            "-J",   # JSON output (no -R = client→server = upload)
+        ]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                stdout, _ = await asyncio.wait_for(
+                    proc.communicate(),
+                    timeout=float(duration) + 30,
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.communicate()
+                return {"host": host, "upload_mbps": 0.0, "reason": "timeout"}
+
+            raw = stdout.decode(errors="replace").strip()
+            if not raw:
+                return {"host": host, "upload_mbps": 0.0, "reason": "failed:no_output"}
+
+            data = json.loads(raw)
+
+            if "error" in data:
+                short_error = str(data["error"])[:80]
+                return {"host": host, "upload_mbps": 0.0, "reason": f"iperf3_error:{short_error}"}
+
+            end = data.get("end", {})
+            # In normal mode the client sends data to the server.
+            # sum_sent = actual upload throughput from the client's perspective.
+            ul_bps = float(end.get("sum_sent", {}).get("bits_per_second", 0.0))
+            return {
+                "host": host,
+                "upload_mbps": round(ul_bps / 1_000_000, 2),
+                "reason": "ok",
+            }
+        except FileNotFoundError:
+            return {"host": host, "upload_mbps": 0.0, "reason": "iperf3_not_installed"}
+        except (json.JSONDecodeError, KeyError, TypeError) as err:
+            return {"host": host, "upload_mbps": 0.0, "reason": f"parse_error:{type(err).__name__}"}
+        except Exception as err:
+            return {"host": host, "upload_mbps": 0.0, "reason": f"failed:{type(err).__name__}"}
+
+
 
     async def _finish_speedtest(
         self,

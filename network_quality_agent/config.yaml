@@ -1,5 +1,5 @@
 name: Network Quality Agent
-version: "0.1.3"
+version: "0.1.4"
 slug: network_quality_agent
 description: Lightweight local metrics agent for Network Quality integration
 url: "https://github.com/northpower25/ha-network-inet-monitor"
@@ -49,6 +49,10 @@ options:
   iperf3_port: 5201
   iperf3_duration_seconds: 10
   iperf3_streams: 4
+  # Fast.com download test (Netflix CDN)
+  fastcom_enabled: true
+  fastcom_duration_seconds: 10
+  fastcom_streams: 4
   # Ookla speedtest (provider: ookla_auto)
   speedtest_ookla_enabled: true
 schema:
@@ -74,4 +78,7 @@ schema:
   iperf3_port: port
   iperf3_duration_seconds: int(5,120)
   iperf3_streams: int(1,16)
+  fastcom_enabled: bool
+  fastcom_duration_seconds: int(5,120)
+  fastcom_streams: int(1,16)
   speedtest_ookla_enabled: bool
