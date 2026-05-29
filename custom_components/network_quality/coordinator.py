@@ -53,6 +53,7 @@ from .const import (
     DEFAULT_TRACEROUTE_INTERVAL,
     DOMAIN,
     MIN_UPDATE_INTERVAL_SECONDS,
+    SERVICE_CHECK_URLS,
     UPDATE_TIMEOUT_SECONDS,
 )
 from .target_parser import parse_target_host_port
@@ -263,7 +264,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._samples = self._samples[-MAX_SAMPLE_HISTORY:]
 
         score = self._calculate_score(sample)
-        service_statuses = self._build_service_statuses(services, external_opt_in, online)
+        service_statuses = await self._build_service_statuses(services, external_opt_in, online)
         stored_sample = self._build_stored_sample(
             timestamp=now,
             sample=sample,
@@ -552,7 +553,7 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Infer online state when agent payload does not provide an explicit flag."""
         return download_mbps > 0 or ping_ms > 0
 
-    def _build_service_statuses(
+    async def _build_service_statuses(
         self, services: list[str], external_opt_in: bool, online: bool
     ) -> list[ServiceStatus]:
         if not services:
@@ -562,7 +563,23 @@ class NetworkQualityCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ServiceStatus(name=name, reachable=online, detail="external_checks_disabled")
                 for name in services
             ]
-        return [ServiceStatus(name=name, reachable=online, detail="not_configured") for name in services]
+        results: list[ServiceStatus] = []
+        for name in services:
+            url = SERVICE_CHECK_URLS.get(name)
+            if not url:
+                results.append(ServiceStatus(name=name, reachable=online, detail="not_configured"))
+                continue
+            try:
+                resp = await self._session.get(
+                    url,
+                    timeout=8,
+                    allow_redirects=True,
+                )
+                reachable = resp.status < 500
+            except Exception:
+                reachable = False
+            results.append(ServiceStatus(name=name, reachable=reachable, detail=url))
+        return results
 
     def _build_default_test_runs(
         self, now: datetime, agent_mode: str

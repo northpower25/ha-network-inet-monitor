@@ -88,6 +88,38 @@ AVAILABLE_SERVICE_CATALOG = [
     "gmx",
 ]
 
+# HTTPS URLs used to probe each service's reachability.
+SERVICE_CHECK_URLS: dict[str, str] = {
+    "amazon": "https://www.amazon.com",
+    "google": "https://www.google.com",
+    "microsoft": "https://www.microsoft.com",
+    "netflix": "https://www.netflix.com",
+    "spotify": "https://www.spotify.com",
+    "discord": "https://discord.com",
+    "whatsapp": "https://www.whatsapp.com",
+    "openai": "https://openai.com",
+    "claude": "https://claude.ai",
+    "github": "https://github.com",
+    "youtube": "https://www.youtube.com",
+    "x": "https://x.com",
+    "facebook": "https://www.facebook.com",
+    "instagram": "https://www.instagram.com",
+    "tiktok": "https://www.tiktok.com",
+    "linkedin": "https://www.linkedin.com",
+    "reddit": "https://www.reddit.com",
+    "telegram": "https://telegram.org",
+    "gmail": "https://mail.google.com",
+    "outlook_com": "https://outlook.live.com",
+    "yahoo_mail": "https://mail.yahoo.com",
+    "icloud_mail": "https://www.icloud.com/mail",
+    "proton_mail": "https://mail.proton.me",
+    "strato": "https://www.strato.de",
+    "one_and_one": "https://www.ionos.de",
+    "freenet": "https://web.freenet.de",
+    "web_de": "https://web.de",
+    "gmx": "https://www.gmx.net",
+}
+
 DATA_COORDINATOR = "coordinator"
 
 SERVICE_EXPORT_REPORT = "export_report"

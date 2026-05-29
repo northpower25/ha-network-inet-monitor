@@ -98,6 +98,9 @@ def _load_coordinator_module() -> types.ModuleType:
     return _load_module("custom_components.network_quality.coordinator", package_path / "coordinator.py")
 
 
+import asyncio
+
+
 def test_nabu_casa_cloud_connection_reflects_online_state() -> None:
     """Nabu Casa cloud service should mirror online connectivity state."""
     coordinator_module = _load_coordinator_module()
@@ -107,17 +110,21 @@ def test_nabu_casa_cloud_connection_reflects_online_state() -> None:
 
     coordinator = CoordinatorStub()
 
-    online = coordinator_module.NetworkQualityCoordinator._build_service_statuses(
-        coordinator,
-        services=["nabu_casa_cloud"],
-        external_opt_in=False,
-        online=True,
+    online = asyncio.run(
+        coordinator_module.NetworkQualityCoordinator._build_service_statuses(
+            coordinator,
+            services=["nabu_casa_cloud"],
+            external_opt_in=False,
+            online=True,
+        )
     )
-    offline = coordinator_module.NetworkQualityCoordinator._build_service_statuses(
-        coordinator,
-        services=["nabu_casa_cloud"],
-        external_opt_in=False,
-        online=False,
+    offline = asyncio.run(
+        coordinator_module.NetworkQualityCoordinator._build_service_statuses(
+            coordinator,
+            services=["nabu_casa_cloud"],
+            external_opt_in=False,
+            online=False,
+        )
     )
 
     assert online[0].name == "nabu_casa_cloud"
